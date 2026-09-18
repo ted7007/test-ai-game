@@ -6,6 +6,7 @@ extends Node2D
 @export_category("Blob shape")
 @export_range(4, 12, 1) var outer_body_count := 6
 @export_range(8.0, 40.0, 1.0, "suffix:px") var outer_radius := 16.0
+@export_range(4.0, 30.0, 1.0, "suffix:px") var center_radius := 12.0
 @export_range(25.0, 110.0, 1.0, "suffix:px") var rest_radius := 44.0
 @export_range(0.1, 8.0, 0.1) var body_mass := 1.0
 
@@ -25,7 +26,7 @@ extends Node2D
 @export_range(0.0, 20.0, 0.1) var angular_damping := 4.0
 
 @export_category("Surface response")
-@export_range(0.0, 2.0, 0.05) var friction := 0.75
+@export_range(0.0, 2.0, 0.05) var friction := 0.35
 @export_range(0.0, 1.0, 0.01) var bounce := 0.05
 
 var center_body: RigidBody2D
@@ -72,11 +73,11 @@ func _apply_control(body: RigidBody2D, lift: bool) -> void:
 		body.linear_velocity = body.linear_velocity.limit_length(max_speed)
 
 func _build_bodies() -> void:
-	center_body = _make_body("Center", Vector2.ZERO, false)
+	center_body = _make_body("Center", Vector2.ZERO, center_radius)
 	add_child(center_body)
 	for i in outer_body_count:
 		var angle := TAU * float(i) / float(outer_body_count)
-		var body := _make_body("Outer%d" % i, Vector2.RIGHT.rotated(angle) * rest_radius, true)
+		var body := _make_body("Outer%d" % i, Vector2.RIGHT.rotated(angle) * rest_radius, outer_radius)
 		add_child(body)
 		outer_bodies.append(body)
 		_make_spring(center_body, body, radial_stiffness, rest_radius)
@@ -85,7 +86,7 @@ func _build_bodies() -> void:
 		var ring_rest := outer_bodies[i].global_position.distance_to(outer_bodies[next].global_position)
 		_make_spring(outer_bodies[i], outer_bodies[next], ring_stiffness, ring_rest)
 
-func _make_body(body_name: String, body_position: Vector2, collides_with_world: bool) -> RigidBody2D:
+func _make_body(body_name: String, body_position: Vector2, collision_radius: float) -> RigidBody2D:
 	var body := RigidBody2D.new()
 	body.name = body_name
 	body.position = body_position
@@ -93,20 +94,19 @@ func _make_body(body_name: String, body_position: Vector2, collides_with_world: 
 	body.gravity_scale = gravity / 980.0
 	body.linear_damp = linear_damping
 	body.angular_damp = angular_damping
-	body.continuous_cd = RigidBody2D.CCD_MODE_CAST_RAY
+	body.continuous_cd = RigidBody2D.CCD_MODE_CAST_SHAPE
 	body.lock_rotation = true
-	body.collision_layer = 2 if collides_with_world else 0
-	body.collision_mask = 1 if collides_with_world else 0
-	if collides_with_world:
-		var collider := CollisionShape2D.new()
-		var shape := CircleShape2D.new()
-		shape.radius = outer_radius
-		collider.shape = shape
-		var material := PhysicsMaterial.new()
-		material.friction = friction
-		material.bounce = bounce
-		body.physics_material_override = material
-		body.add_child(collider)
+	body.collision_layer = 2
+	body.collision_mask = 1
+	var collider := CollisionShape2D.new()
+	var shape := CircleShape2D.new()
+	shape.radius = collision_radius
+	collider.shape = shape
+	var material := PhysicsMaterial.new()
+	material.friction = friction
+	material.bounce = bounce
+	body.physics_material_override = material
+	body.add_child(collider)
 	return body
 
 func _make_spring(body_a: RigidBody2D, body_b: RigidBody2D, stiffness: float, rest_length: float) -> void:
