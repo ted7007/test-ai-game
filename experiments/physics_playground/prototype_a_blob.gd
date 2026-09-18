@@ -59,6 +59,12 @@ func reset_to_start() -> void:
 func get_center_position() -> Vector2:
 	return center_body.global_position
 
+func get_leftmost_position() -> float:
+	var leftmost := center_body.global_position.x - center_radius
+	for body in outer_bodies:
+		leftmost = minf(leftmost, body.global_position.x - outer_radius)
+	return leftmost
+
 func needs_safety_reset() -> bool:
 	for body in outer_bodies:
 		if body.global_position.distance_to(center_body.global_position) > safety_reset_radius:

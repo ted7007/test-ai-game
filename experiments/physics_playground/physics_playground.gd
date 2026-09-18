@@ -2,24 +2,39 @@ extends Node2D
 
 const WORLD_WIDTH := 2400.0
 const FLOOR_Y := 650.0
+const HALF_VIEW_WIDTH := 640.0
 
 @export var show_collider_guides := false
+@export_range(0.0, 300.0, 5.0, "suffix:px/s") var camera_scroll_speed := 55.0
+@export_range(0.0, 160.0, 5.0, "suffix:px") var left_wall_inset := 20.0
+@export_range(720.0, 1200.0, 10.0, "suffix:px") var fall_death_y := 820.0
 @onready var blob: PrototypeABlob = $PrototypeABlob
 @onready var camera: Camera2D = $Camera2D
 
 var _terrain_guides: Array[PackedVector2Array] = []
 var _terrain_colors: Array[Color] = []
 var _pause_button: Button
+var _game_over_label: Label
+var _camera_x := HALF_VIEW_WIDTH
+var _game_over := false
 
 func _ready() -> void:
 	_build_course()
 	_build_mobile_controls()
 	queue_redraw()
 
-func _physics_process(_delta: float) -> void:
-	if blob.get_center_position().y > 820.0 or blob.needs_safety_reset():
+func _physics_process(delta: float) -> void:
+	if _game_over:
+		return
+	if blob.needs_safety_reset():
 		blob.reset_to_start()
-	camera.global_position = Vector2(clampf(blob.get_center_position().x, 640.0, WORLD_WIDTH - 640.0), 360.0)
+		_reset_camera()
+	_camera_x = minf(_camera_x + camera_scroll_speed * delta, WORLD_WIDTH - HALF_VIEW_WIDTH)
+	camera.global_position = Vector2(_camera_x, 360.0)
+	if blob.get_center_position().y > fall_death_y:
+		_game_over_now("Fell below the level")
+	elif blob.get_leftmost_position() <= _left_wall_x():
+		_game_over_now("Caught by the left wall")
 	queue_redraw()
 
 func _input(event: InputEvent) -> void:
@@ -61,9 +76,24 @@ func _build_mobile_controls() -> void:
 	menu.custom_minimum_size = Vector2(115, 54)
 	menu.pressed.connect(_return_to_menu)
 	controls.add_child(menu)
+	_game_over_label = Label.new()
+	_game_over_label.process_mode = Node.PROCESS_MODE_ALWAYS
+	_game_over_label.set_anchors_preset(Control.PRESET_CENTER)
+	_game_over_label.position = Vector2(-300, -90)
+	_game_over_label.size = Vector2(600, 180)
+	_game_over_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_game_over_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_game_over_label.add_theme_font_size_override("font_size", 32)
+	_game_over_label.add_theme_color_override("font_color", Color("ffd166"))
+	_game_over_label.visible = false
+	layer.add_child(_game_over_label)
 
 func _restart() -> void:
+	_game_over = false
+	_game_over_label.visible = false
+	_pause_button.disabled = false
 	_set_paused(false)
+	_reset_camera()
 	blob.reset_to_start()
 
 func _toggle_pause() -> void:
@@ -73,6 +103,21 @@ func _set_paused(paused: bool) -> void:
 	blob.set_touch_lift(false)
 	get_tree().paused = paused
 	_pause_button.text = "Play" if paused else "Pause"
+
+func _game_over_now(reason: String) -> void:
+	_game_over = true
+	blob.set_touch_lift(false)
+	_game_over_label.text = "GAME OVER\n%s\nTap Restart" % reason
+	_game_over_label.visible = true
+	_pause_button.disabled = true
+	get_tree().paused = true
+
+func _reset_camera() -> void:
+	_camera_x = HALF_VIEW_WIDTH
+	camera.global_position = Vector2(_camera_x, 360.0)
+
+func _left_wall_x() -> float:
+	return _camera_x - HALF_VIEW_WIDTH + left_wall_inset
 
 func _return_to_menu() -> void:
 	_set_paused(false)
@@ -149,6 +194,7 @@ func _draw() -> void:
 		var guide := _terrain_guides[i]
 		draw_colored_polygon(guide, _terrain_colors[i])
 		draw_polyline(guide + PackedVector2Array([guide[0]]), Color("90b7c6"), 2.0)
+	draw_rect(Rect2(_left_wall_x() - 14.0, 0.0, 14.0, 720.0), Color("b92f49"))
 	if show_collider_guides:
 		draw_string(ThemeDB.fallback_font, Vector2(26, 42), "F1: collider guides ON", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color("ffe29a"))
 	else:
