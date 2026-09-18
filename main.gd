@@ -196,6 +196,17 @@ func _clear_players() -> void:
 func _build_level() -> void:
 	_add_rect("Ceiling", Rect2(0, 0, WORLD_WIDTH, CEILING_HEIGHT), Color("f3a6c8"))
 	_add_rect("Floor", Rect2(0, FLOOR_Y, WORLD_WIDTH, 85), Color("f3a6c8"))
+	# Optional early Split route. The upper half stays open, while the lower
+	# route ends in two gaps that only the smaller children can pass.
+	_add_rect("SplitRouteRoof", Rect2(450, 300, 200, 30), Color("f3a6c8"))
+	_add_polygon("SplitRoutePoint", PackedVector2Array([
+		Vector2(500, 482.5),
+		Vector2(570, 440),
+		Vector2(570, 525),
+	]), Color("f3a6c8"))
+	_add_rect("SplitRouteSeparator", Rect2(570, 440, 80, 85), Color("f3a6c8"))
+	_add_rect("SplitRouteGateTop", Rect2(620, 330, 30, 35), Color("f3a6c8"))
+	_add_rect("SplitRouteGateBottom", Rect2(620, 600, 30, 35), Color("f3a6c8"))
 	_add_rect("Obstacle1", Rect2(820, 85, 120, 300), Color("f3a6c8"))
 	_add_rect("Obstacle2", Rect2(1230, 390, 120, 245), Color("f3a6c8"))
 	_add_rect("Obstacle3", Rect2(1640, 85, 120, 330), Color("f3a6c8"))
@@ -216,6 +227,17 @@ func _add_rect(body_name: String, rect: Rect2, color: Color) -> void:
 	body.add_child(collision)
 	add_child(body)
 	_terrain_guides.append(PackedVector2Array([rect.position, Vector2(rect.end.x, rect.position.y), rect.end, Vector2(rect.position.x, rect.end.y)]))
+	_terrain_colors.append(color)
+
+func _add_polygon(body_name: String, points: PackedVector2Array, color: Color) -> void:
+	var body := StaticBody2D.new()
+	body.name = body_name
+	body.collision_layer = 1
+	var collision := CollisionPolygon2D.new()
+	collision.polygon = points
+	body.add_child(collision)
+	add_child(body)
+	_terrain_guides.append(points)
 	_terrain_colors.append(color)
 
 func _build_ui() -> void:
