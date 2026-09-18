@@ -31,6 +31,7 @@ var center_body: RigidBody2D
 var outer_bodies: Array[RigidBody2D] = []
 var start_position := Vector2.ZERO
 var _outline := PackedVector2Array()
+var _touch_lift := false
 
 func _ready() -> void:
 	start_position = global_position
@@ -38,17 +39,21 @@ func _ready() -> void:
 	queue_redraw()
 
 func _physics_process(_delta: float) -> void:
-	var lift := Input.is_action_pressed("fly")
+	var lift := _touch_lift or Input.is_action_pressed("fly")
 	for body in outer_bodies:
 		_apply_control(body, lift)
 	_apply_control(center_body, lift)
 	queue_redraw()
+
+func set_touch_lift(pressed: bool) -> void:
+	_touch_lift = pressed
 
 func reset_to_start() -> void:
 	global_position = start_position
 	center_body.global_position = start_position
 	center_body.linear_velocity = Vector2.ZERO
 	center_body.angular_velocity = 0.0
+	_touch_lift = false
 	for i in outer_bodies.size():
 		var angle := TAU * float(i) / float(outer_bodies.size())
 		var body := outer_bodies[i]

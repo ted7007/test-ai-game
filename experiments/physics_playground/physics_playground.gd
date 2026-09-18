@@ -12,19 +12,49 @@ var _terrain_colors: Array[Color] = []
 
 func _ready() -> void:
 	_build_course()
+	_build_mobile_controls()
 	queue_redraw()
 
 func _physics_process(_delta: float) -> void:
+	if blob.get_center_position().y > 820.0:
+		blob.reset_to_start()
 	camera.global_position = Vector2(clampf(blob.get_center_position().x, 640.0, WORLD_WIDTH - 640.0), 360.0)
 	queue_redraw()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		blob.set_touch_lift(event.pressed)
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_R:
 			blob.reset_to_start()
 		elif event.keycode == KEY_F1:
 			show_collider_guides = not show_collider_guides
 			queue_redraw()
+		elif event.keycode == KEY_ESCAPE:
+			get_tree().change_scene_to_file("res://debug_launcher.tscn")
+
+func _build_mobile_controls() -> void:
+	var layer := CanvasLayer.new()
+	add_child(layer)
+	var controls := HBoxContainer.new()
+	controls.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	controls.position = Vector2(-260, 18)
+	controls.size = Vector2(242, 54)
+	controls.add_theme_constant_override("separation", 12)
+	layer.add_child(controls)
+	var restart := Button.new()
+	restart.text = "Restart"
+	restart.custom_minimum_size = Vector2(115, 54)
+	restart.pressed.connect(blob.reset_to_start)
+	controls.add_child(restart)
+	var menu := Button.new()
+	menu.text = "Menu"
+	menu.custom_minimum_size = Vector2(115, 54)
+	menu.pressed.connect(_return_to_menu)
+	controls.add_child(menu)
+
+func _return_to_menu() -> void:
+	get_tree().change_scene_to_file("res://debug_launcher.tscn")
 
 func _build_course() -> void:
 	_add_rect("Floor", Rect2(1200, FLOOR_Y + 30, WORLD_WIDTH, 60), Color("19364b"), "Ровный пол")
