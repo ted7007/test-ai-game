@@ -8,7 +8,7 @@ const OBSTACLE_OUTLINE_COLOR := Color("ffe3f0")
 const DEATH_WALL_COLOR := Color("d85f8e")
 const INITIAL_PLAYER_POSITION := Vector2(170.0, 300.0)
 const SPLIT_CHILD_SCALE := 0.65
-const SPLIT_SPAWN_OFFSET := 14.0
+const SPLIT_CHILD_CLEARANCE := 52.0
 const SPLIT_SEPARATION_IMPULSE := 35.0
 const PLAYER_SCENE := preload("res://player/player_blob.tscn")
 const PAUSE_MENU_SCENE := preload("res://ui/pause_menu.tscn")
@@ -143,13 +143,12 @@ func _spawn_player(spawn_position: Vector2, size_scale: float, allow_split: bool
 	new_player.initialize_motion(inherited_velocity, separation_impulse)
 	return new_player
 
-func _on_player_split_requested(source: PlayerBlob, separation_axis: Vector2) -> void:
-	call_deferred("_replace_player_with_children", source, separation_axis, 2, SPLIT_CHILD_SCALE, false, SPLIT_SEPARATION_IMPULSE)
+func _on_player_split_requested(source: PlayerBlob, separation_axis: Vector2, split_origin: Vector2) -> void:
+	call_deferred("_replace_player_with_children", source, separation_axis, split_origin, 2, SPLIT_CHILD_SCALE, false, SPLIT_SEPARATION_IMPULSE)
 
-func _replace_player_with_children(source: PlayerBlob, separation_axis: Vector2, child_count: int, child_scale: float, children_can_split: bool, separation_impulse: float) -> void:
+func _replace_player_with_children(source: PlayerBlob, separation_axis: Vector2, split_origin: Vector2, child_count: int, child_scale: float, children_can_split: bool, separation_impulse: float) -> void:
 	if not is_instance_valid(source) or source not in _players or child_count < 1:
 		return
-	var spawn_position := source.get_center_position()
 	var inherited_velocity := source.get_velocity()
 	var axis := separation_axis.normalized()
 	if axis == Vector2.ZERO:
@@ -159,7 +158,7 @@ func _replace_player_with_children(source: PlayerBlob, separation_axis: Vector2,
 	for child_index in child_count:
 		var centered_index := float(child_index) - float(child_count - 1) * 0.5
 		var direction_factor := centered_index / max_centered_index if child_count > 1 else 0.0
-		var child_position := spawn_position + axis * SPLIT_SPAWN_OFFSET * direction_factor
+		var child_position := split_origin + axis * SPLIT_CHILD_CLEARANCE * direction_factor
 		var child_impulse := axis * separation_impulse * direction_factor
 		_spawn_player(child_position, child_scale, children_can_split, inherited_velocity, child_impulse)
 	_has_split = true

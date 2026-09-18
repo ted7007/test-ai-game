@@ -1,7 +1,7 @@
 class_name PlayerBlob
 extends Node2D
 
-signal split_requested(source, separation_axis: Vector2)
+signal split_requested(source, separation_axis: Vector2, split_origin: Vector2)
 
 ## Production spring-blob player. Gameplay tuning remains exposed in Inspector.
 @export_category("Blob shape")
@@ -66,6 +66,7 @@ var _contact_positions := PackedVector2Array()
 var _contact_is_round := PackedByteArray()
 var _size_scale := 1.0
 var _crush_timer := 0.0
+var _crush_contact_point := Vector2.ZERO
 var _split_requested := false
 var _split_feedback_remaining := 0.0
 
@@ -111,6 +112,7 @@ func reset_to_start() -> void:
 		_snag_timers[i] = 0.0
 		_snag_releasing[i] = 0
 	_crush_timer = 0.0
+	_crush_contact_point = Vector2.ZERO
 	_split_requested = false
 	queue_redraw()
 
@@ -284,7 +286,7 @@ func _update_crush_detection(delta: float, lift: bool) -> void:
 		return
 	_split_requested = true
 	can_split = false
-	split_requested.emit(self, separation_axis)
+	split_requested.emit(self, separation_axis, _crush_contact_point)
 
 func _collect_environment_contacts() -> void:
 	_contact_normals.clear()
@@ -327,6 +329,7 @@ func _find_crush_axis(lift: bool) -> Vector2:
 				continue
 			var compressed_between_surfaces := _compression_ratio_on_axis(axis) <= crush_compression_ratio
 			if compressed_between_surfaces or close_to_sharp_tip:
+				_crush_contact_point = (_contact_positions[first_index] + _contact_positions[second_index]) * 0.5
 				return axis
 	return Vector2.ZERO
 
