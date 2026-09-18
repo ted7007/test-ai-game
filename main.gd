@@ -9,20 +9,28 @@ const FINISH_X := 3650.0
 const CAMERA_SCROLL_SPEED := 55.0
 const LEFT_WALL_INSET := 20.0
 const FALL_DEATH_Y := 820.0
+const INITIAL_PLAYER_POSITION := Vector2(260.0, 360.0)
+const SPLIT_CHILD_SCALE := 0.65
+const SPLIT_SPAWN_OFFSET := 14.0
+const SPLIT_SEPARATION_IMPULSE := 35.0
+const PLAYER_SCENE := preload("res://player/player_blob.tscn")
 
-@onready var player: PlayerBlob = $PlayerBlob
 @onready var camera: Camera2D = $Camera2D
 
+var _players: Array[PlayerBlob] = []
 var _terrain_guides: Array[PackedVector2Array] = []
 var _terrain_colors: Array[Color] = []
 var _camera_x := HALF_VIEW_WIDTH
 var _elapsed := 0.0
 var _game_over := false
 var _won := false
+var _has_split := false
+var _touch_lift := false
 var _restart_button: Button
 var _status_label: Label
 
 func _ready() -> void:
+	_register_player($PlayerBlob)
 	_build_level()
 	_build_ui()
 	_reset_camera()
@@ -34,17 +42,34 @@ func _physics_process(delta: float) -> void:
 		_publish_debug_data(delta)
 		return
 	_elapsed += delta
-	if player.needs_safety_reset():
-		player.reset_to_start()
-		_reset_camera()
+	var eliminated: Array[PlayerBlob] = []
+	var last_elimination_reason := "No players remaining"
+	for current_player in _players:
+		if current_player.needs_safety_reset():
+			if not _has_split and _players.size() == 1:
+				current_player.reset_to_start()
+				_reset_camera()
+			else:
+				eliminated.append(current_player)
+				last_elimination_reason = "Blob physics became unstable"
 	_camera_x = minf(_camera_x + CAMERA_SCROLL_SPEED * delta, WORLD_WIDTH - HALF_VIEW_WIDTH)
 	camera.global_position = Vector2(_camera_x, 360.0)
-	if player.get_center_position().y > FALL_DEATH_Y:
-		_end_attempt("Fell below the level")
-	elif player.get_core_left_position() <= _left_wall_x():
-		_end_attempt("Caught by the left wall")
-	elif player.get_center_position().x >= FINISH_X:
-		_win_level()
+	for current_player in _players:
+		if current_player in eliminated:
+			continue
+		if current_player.get_center_position().x >= FINISH_X:
+			_win_level()
+			break
+		if current_player.get_center_position().y > FALL_DEATH_Y:
+			eliminated.append(current_player)
+			last_elimination_reason = "Fell below the level"
+		elif current_player.get_core_left_position() <= _left_wall_x():
+			eliminated.append(current_player)
+			last_elimination_reason = "Caught by the left wall"
+	for current_player in eliminated:
+		_remove_player(current_player)
+	if not _won and _players.is_empty():
+		_end_attempt(last_elimination_reason)
 	_publish_debug_data(delta)
 	queue_redraw()
 
@@ -52,7 +77,9 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if DebugOverlay.is_badge_hit(event.position):
 			return
-		player.set_touch_lift(event.pressed)
+		_touch_lift = event.pressed
+		for current_player in _players:
+			current_player.set_touch_lift(_touch_lift)
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
 		_restart()
 
@@ -60,8 +87,11 @@ func _restart() -> void:
 	_game_over = false
 	_won = false
 	_elapsed = 0.0
+	_has_split = false
+	_touch_lift = false
 	get_tree().paused = false
-	player.reset_to_start()
+	_clear_players()
+	_spawn_player(INITIAL_PLAYER_POSITION, 1.0, true, Vector2.ZERO, Vector2.ZERO)
 	_reset_camera()
 	_status_label.visible = false
 	_restart_button.visible = false
@@ -69,7 +99,9 @@ func _restart() -> void:
 
 func _end_attempt(reason: String) -> void:
 	_game_over = true
-	player.set_touch_lift(false)
+	_touch_lift = false
+	for current_player in _players:
+		current_player.set_touch_lift(false)
 	_status_label.text = "GAME OVER\n%s" % reason
 	_status_label.visible = true
 	_restart_button.visible = true
@@ -78,7 +110,9 @@ func _end_attempt(reason: String) -> void:
 
 func _win_level() -> void:
 	_won = true
-	player.set_touch_lift(false)
+	_touch_lift = false
+	for current_player in _players:
+		current_player.set_touch_lift(false)
 	_status_label.text = "FINISH!"
 	_status_label.visible = true
 	_restart_button.visible = true
@@ -91,6 +125,54 @@ func _reset_camera() -> void:
 
 func _left_wall_x() -> float:
 	return _camera_x - HALF_VIEW_WIDTH + LEFT_WALL_INSET
+
+func _register_player(new_player: PlayerBlob) -> void:
+	_players.append(new_player)
+	new_player.set_touch_lift(_touch_lift)
+	new_player.split_requested.connect(_on_player_split_requested)
+
+func _spawn_player(spawn_position: Vector2, size_scale: float, allow_split: bool, inherited_velocity: Vector2, separation_impulse: Vector2) -> PlayerBlob:
+	var new_player := PLAYER_SCENE.instantiate() as PlayerBlob
+	new_player.configure_variant(size_scale, allow_split)
+	new_player.position = spawn_position
+	add_child(new_player)
+	_register_player(new_player)
+	new_player.initialize_motion(inherited_velocity, separation_impulse)
+	return new_player
+
+func _on_player_split_requested(source: PlayerBlob, separation_axis: Vector2) -> void:
+	call_deferred("_replace_player_with_children", source, separation_axis, 2, SPLIT_CHILD_SCALE, false, SPLIT_SEPARATION_IMPULSE)
+
+func _replace_player_with_children(source: PlayerBlob, separation_axis: Vector2, child_count: int, child_scale: float, children_can_split: bool, separation_impulse: float) -> void:
+	if not is_instance_valid(source) or source not in _players or child_count < 1:
+		return
+	var spawn_position := source.get_center_position()
+	var inherited_velocity := source.get_velocity()
+	var axis := separation_axis.normalized()
+	if axis == Vector2.ZERO:
+		axis = Vector2.UP
+	_remove_player(source)
+	var max_centered_index := maxf(float(child_count - 1) * 0.5, 0.5)
+	for child_index in child_count:
+		var centered_index := float(child_index) - float(child_count - 1) * 0.5
+		var direction_factor := centered_index / max_centered_index if child_count > 1 else 0.0
+		var child_position := spawn_position + axis * SPLIT_SPAWN_OFFSET * direction_factor
+		var child_impulse := axis * separation_impulse * direction_factor
+		_spawn_player(child_position, child_scale, children_can_split, inherited_velocity, child_impulse)
+	_has_split = true
+	DebugLog.event("Player split", "%d children at %.2f scale" % [child_count, child_scale])
+
+func _remove_player(current_player: PlayerBlob) -> void:
+	if current_player not in _players:
+		return
+	_players.erase(current_player)
+	if current_player.get_parent() == self:
+		remove_child(current_player)
+	current_player.queue_free()
+
+func _clear_players() -> void:
+	for current_player in _players.duplicate():
+		_remove_player(current_player)
 
 func _build_level() -> void:
 	_add_rect("Ceiling", Rect2(0, 0, WORLD_WIDTH, CEILING_HEIGHT), Color("f3a6c8"))
@@ -144,15 +226,22 @@ func _build_ui() -> void:
 
 func _publish_debug_data(delta: float) -> void:
 	var state := "game_over" if _game_over else ("finished" if _won else "playing")
+	var leading_player: PlayerBlob = null
+	for current_player in _players:
+		if leading_player == null or current_player.get_center_position().x > leading_player.get_center_position().x:
+			leading_player = current_player
+	var leading_position := leading_player.get_center_position() if leading_player != null else Vector2.ZERO
+	var leading_velocity := leading_player.get_velocity() if leading_player != null else Vector2.ZERO
 	DebugOverlay.set_game_data({
 		"scene": get_tree().current_scene.name,
 		"state": state,
 		"elapsed": _elapsed,
-		"position": player.get_center_position(),
-		"velocity": player.get_velocity(),
-		"vertical_velocity": player.get_velocity().y,
-		"alive": not _game_over,
-		"touch": "pressed" if Input.is_action_pressed("fly") else "released",
+		"position": leading_position,
+		"velocity": leading_velocity,
+		"vertical_velocity": leading_velocity.y,
+		"alive": not _players.is_empty(),
+		"players": _players.size(),
+		"touch": "pressed" if (_touch_lift or Input.is_action_pressed("fly")) else "released",
 		"input": "spring blob",
 		"frame_time": delta * 1000.0,
 	})

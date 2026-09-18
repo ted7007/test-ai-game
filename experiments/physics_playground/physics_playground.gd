@@ -6,22 +6,30 @@ const HALF_VIEW_WIDTH := 640.0
 const OBSTACLE_COLOR := Color("f3a6c8")
 const OBSTACLE_OUTLINE_COLOR := Color("ffe3f0")
 const DEATH_WALL_COLOR := Color("d85f8e")
+const INITIAL_PLAYER_POSITION := Vector2(170.0, 300.0)
+const SPLIT_CHILD_SCALE := 0.65
+const SPLIT_SPAWN_OFFSET := 14.0
+const SPLIT_SEPARATION_IMPULSE := 35.0
+const PLAYER_SCENE := preload("res://player/player_blob.tscn")
 
 @export var show_collider_guides := false
 @export_range(0.0, 300.0, 5.0, "suffix:px/s") var camera_scroll_speed := 55.0
 @export_range(0.0, 160.0, 5.0, "suffix:px") var left_wall_inset := 20.0
 @export_range(720.0, 1200.0, 10.0, "suffix:px") var fall_death_y := 820.0
-@onready var blob: PlayerBlob = $PlayerBlob
 @onready var camera: Camera2D = $Camera2D
 
+var _players: Array[PlayerBlob] = []
 var _terrain_guides: Array[PackedVector2Array] = []
 var _terrain_colors: Array[Color] = []
 var _pause_button: Button
 var _game_over_label: Label
 var _camera_x := HALF_VIEW_WIDTH
 var _game_over := false
+var _has_split := false
+var _touch_lift := false
 
 func _ready() -> void:
+	_register_player($PlayerBlob)
 	_build_course()
 	_build_mobile_controls()
 	queue_redraw()
@@ -29,23 +37,41 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if _game_over:
 		return
-	if blob.needs_safety_reset():
-		blob.reset_to_start()
-		_reset_camera()
+	var eliminated: Array[PlayerBlob] = []
+	var last_elimination_reason := "No players remaining"
+	for current_player in _players:
+		if current_player.needs_safety_reset():
+			if not _has_split and _players.size() == 1:
+				current_player.reset_to_start()
+				_reset_camera()
+			else:
+				eliminated.append(current_player)
+				last_elimination_reason = "Blob physics became unstable"
 	_camera_x = minf(_camera_x + camera_scroll_speed * delta, WORLD_WIDTH - HALF_VIEW_WIDTH)
 	camera.global_position = Vector2(_camera_x, 360.0)
-	if blob.get_center_position().y > fall_death_y:
-		_game_over_now("Fell below the level")
-	elif blob.get_core_left_position() <= _left_wall_x():
-		_game_over_now("Caught by the left wall")
+	for current_player in _players:
+		if current_player in eliminated:
+			continue
+		if current_player.get_center_position().y > fall_death_y:
+			eliminated.append(current_player)
+			last_elimination_reason = "Fell below the level"
+		elif current_player.get_core_left_position() <= _left_wall_x():
+			eliminated.append(current_player)
+			last_elimination_reason = "Caught by the left wall"
+	for current_player in eliminated:
+		_remove_player(current_player)
+	if _players.is_empty():
+		_game_over_now(last_elimination_reason)
 	queue_redraw()
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
-		blob.set_touch_lift(event.pressed)
+		_touch_lift = event.pressed
+		for current_player in _players:
+			current_player.set_touch_lift(_touch_lift)
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_R:
-			blob.reset_to_start()
+			_restart()
 		elif event.keycode == KEY_F1:
 			show_collider_guides = not show_collider_guides
 			queue_redraw()
@@ -93,23 +119,30 @@ func _build_mobile_controls() -> void:
 
 func _restart() -> void:
 	_game_over = false
+	_has_split = false
+	_touch_lift = false
 	_game_over_label.visible = false
 	_pause_button.disabled = false
 	_set_paused(false)
 	_reset_camera()
-	blob.reset_to_start()
+	_clear_players()
+	_spawn_player(INITIAL_PLAYER_POSITION, 1.0, true, Vector2.ZERO, Vector2.ZERO)
 
 func _toggle_pause() -> void:
 	_set_paused(not get_tree().paused)
 
 func _set_paused(paused: bool) -> void:
-	blob.set_touch_lift(false)
+	_touch_lift = false
+	for current_player in _players:
+		current_player.set_touch_lift(false)
 	get_tree().paused = paused
 	_pause_button.text = "Play" if paused else "Pause"
 
 func _game_over_now(reason: String) -> void:
 	_game_over = true
-	blob.set_touch_lift(false)
+	_touch_lift = false
+	for current_player in _players:
+		current_player.set_touch_lift(false)
 	_game_over_label.text = "GAME OVER\n%s\nTap Restart" % reason
 	_game_over_label.visible = true
 	_pause_button.disabled = true
@@ -121,6 +154,53 @@ func _reset_camera() -> void:
 
 func _left_wall_x() -> float:
 	return _camera_x - HALF_VIEW_WIDTH + left_wall_inset
+
+func _register_player(new_player: PlayerBlob) -> void:
+	_players.append(new_player)
+	new_player.set_touch_lift(_touch_lift)
+	new_player.split_requested.connect(_on_player_split_requested)
+
+func _spawn_player(spawn_position: Vector2, size_scale: float, allow_split: bool, inherited_velocity: Vector2, separation_impulse: Vector2) -> PlayerBlob:
+	var new_player := PLAYER_SCENE.instantiate() as PlayerBlob
+	new_player.configure_variant(size_scale, allow_split)
+	new_player.position = spawn_position
+	add_child(new_player)
+	_register_player(new_player)
+	new_player.initialize_motion(inherited_velocity, separation_impulse)
+	return new_player
+
+func _on_player_split_requested(source: PlayerBlob, separation_axis: Vector2) -> void:
+	call_deferred("_replace_player_with_children", source, separation_axis, 2, SPLIT_CHILD_SCALE, false, SPLIT_SEPARATION_IMPULSE)
+
+func _replace_player_with_children(source: PlayerBlob, separation_axis: Vector2, child_count: int, child_scale: float, children_can_split: bool, separation_impulse: float) -> void:
+	if not is_instance_valid(source) or source not in _players or child_count < 1:
+		return
+	var spawn_position := source.get_center_position()
+	var inherited_velocity := source.get_velocity()
+	var axis := separation_axis.normalized()
+	if axis == Vector2.ZERO:
+		axis = Vector2.UP
+	_remove_player(source)
+	var max_centered_index := maxf(float(child_count - 1) * 0.5, 0.5)
+	for child_index in child_count:
+		var centered_index := float(child_index) - float(child_count - 1) * 0.5
+		var direction_factor := centered_index / max_centered_index if child_count > 1 else 0.0
+		var child_position := spawn_position + axis * SPLIT_SPAWN_OFFSET * direction_factor
+		var child_impulse := axis * separation_impulse * direction_factor
+		_spawn_player(child_position, child_scale, children_can_split, inherited_velocity, child_impulse)
+	_has_split = true
+
+func _remove_player(current_player: PlayerBlob) -> void:
+	if current_player not in _players:
+		return
+	_players.erase(current_player)
+	if current_player.get_parent() == self:
+		remove_child(current_player)
+	current_player.queue_free()
+
+func _clear_players() -> void:
+	for current_player in _players.duplicate():
+		_remove_player(current_player)
 
 func _return_to_menu() -> void:
 	_set_paused(false)
@@ -151,8 +231,8 @@ func _build_course() -> void:
 	_add_circle("LargeRound", Vector2(5570, 500), 110.0, OBSTACLE_COLOR, "Крупный круг")
 	_add_rect("CorridorTop", Rect2(5940, 80, 70, 245), OBSTACLE_COLOR, "Коридор")
 	_add_rect("CorridorBottom", Rect2(5940, 435, 70, 215), OBSTACLE_COLOR, "")
-	_add_polygon("UpperEdge", PackedVector2Array([Vector2(6280, 210), Vector2(6480, 210), Vector2(6480, 330)]), OBSTACLE_COLOR, "Верхний край")
-	_add_polygon("LowerEdge", PackedVector2Array([Vector2(6280, 570), Vector2(6480, 450), Vector2(6480, 570)]), OBSTACLE_COLOR, "Нижний край")
+	_add_polygon("UpperEdge", PackedVector2Array([Vector2(6280, 210), Vector2(6560, 210), Vector2(6560, 390)]), OBSTACLE_COLOR, "Split-клин")
+	_add_polygon("LowerEdge", PackedVector2Array([Vector2(6280, 570), Vector2(6560, 390), Vector2(6560, 570)]), OBSTACLE_COLOR, "")
 	_add_rect("ContactPost", Rect2(6740, 390, 44, 260), OBSTACLE_COLOR, "Столб")
 
 	_add_label(Vector2(7120, 125), "УЧАСТОК 4 · качение и восстановление")
