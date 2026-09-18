@@ -14,12 +14,13 @@ extends Node2D
 @export_range(5.0, 2000.0, 5.0) var ring_stiffness := 210.0
 @export_range(0.0, 100.0, 0.5) var spring_damping := 14.0
 @export_range(1.0, 300.0, 1.0, "suffix:px") var spring_max_length := 110.0
+@export_range(50.0, 400.0, 5.0, "suffix:px") var safety_reset_radius := 150.0
 
 @export_category("Movement")
-@export_range(0.0, 4000.0, 10.0) var forward_force := 780.0
+@export_range(0.0, 4000.0, 10.0) var forward_force := 360.0
 @export_range(0.0, 5000.0, 10.0) var lift_force := 1750.0
 @export_range(0.0, 3000.0, 10.0) var gravity := 980.0
-@export_range(20.0, 1200.0, 10.0, "suffix:px/s") var max_speed := 430.0
+@export_range(20.0, 1200.0, 10.0, "suffix:px/s") var max_speed := 260.0
 @export_range(0.0, 20.0, 0.1) var linear_damping := 1.2
 @export_range(0.0, 20.0, 0.1) var angular_damping := 4.0
 
@@ -29,12 +30,10 @@ extends Node2D
 
 var center_body: RigidBody2D
 var outer_bodies: Array[RigidBody2D] = []
-var start_position := Vector2.ZERO
 var _outline := PackedVector2Array()
 var _touch_lift := false
 
 func _ready() -> void:
-	start_position = global_position
 	_build_bodies()
 	queue_redraw()
 
@@ -49,21 +48,21 @@ func set_touch_lift(pressed: bool) -> void:
 	_touch_lift = pressed
 
 func reset_to_start() -> void:
-	global_position = start_position
-	center_body.global_position = start_position
-	center_body.linear_velocity = Vector2.ZERO
-	center_body.angular_velocity = 0.0
 	_touch_lift = false
+	_reset_body(center_body, Vector2.ZERO)
 	for i in outer_bodies.size():
 		var angle := TAU * float(i) / float(outer_bodies.size())
-		var body := outer_bodies[i]
-		body.global_position = start_position + Vector2.RIGHT.rotated(angle) * rest_radius
-		body.linear_velocity = Vector2.ZERO
-		body.angular_velocity = 0.0
+		_reset_body(outer_bodies[i], Vector2.RIGHT.rotated(angle) * rest_radius)
 	queue_redraw()
 
 func get_center_position() -> Vector2:
 	return center_body.global_position
+
+func needs_safety_reset() -> bool:
+	for body in outer_bodies:
+		if body.global_position.distance_to(center_body.global_position) > safety_reset_radius:
+			return true
+	return false
 
 func _apply_control(body: RigidBody2D, lift: bool) -> void:
 	body.apply_central_force(Vector2.RIGHT * forward_force)
@@ -73,11 +72,11 @@ func _apply_control(body: RigidBody2D, lift: bool) -> void:
 		body.linear_velocity = body.linear_velocity.limit_length(max_speed)
 
 func _build_bodies() -> void:
-	center_body = _make_body("Center", start_position, false)
+	center_body = _make_body("Center", Vector2.ZERO, false)
 	add_child(center_body)
 	for i in outer_body_count:
 		var angle := TAU * float(i) / float(outer_body_count)
-		var body := _make_body("Outer%d" % i, start_position + Vector2.RIGHT.rotated(angle) * rest_radius, true)
+		var body := _make_body("Outer%d" % i, Vector2.RIGHT.rotated(angle) * rest_radius, true)
 		add_child(body)
 		outer_bodies.append(body)
 		_make_spring(center_body, body, radial_stiffness, rest_radius)
@@ -89,7 +88,7 @@ func _build_bodies() -> void:
 func _make_body(body_name: String, body_position: Vector2, collides_with_world: bool) -> RigidBody2D:
 	var body := RigidBody2D.new()
 	body.name = body_name
-	body.global_position = body_position
+	body.position = body_position
 	body.mass = body_mass
 	body.gravity_scale = gravity / 980.0
 	body.linear_damp = linear_damping
@@ -112,6 +111,8 @@ func _make_body(body_name: String, body_position: Vector2, collides_with_world: 
 
 func _make_spring(body_a: RigidBody2D, body_b: RigidBody2D, stiffness: float, rest_length: float) -> void:
 	var spring := DampedSpringJoint2D.new()
+	spring.position = body_a.position
+	spring.rotation = body_a.position.direction_to(body_b.position).angle()
 	spring.node_a = NodePath("../" + body_a.name)
 	spring.node_b = NodePath("../" + body_b.name)
 	spring.length = rest_length
@@ -121,6 +122,15 @@ func _make_spring(body_a: RigidBody2D, body_b: RigidBody2D, stiffness: float, re
 	spring.damping = spring_damping
 	spring.exclude_nodes_from_collision = true
 	add_child(spring)
+
+func _reset_body(body: RigidBody2D, local_position: Vector2) -> void:
+	body.freeze = true
+	body.position = local_position
+	body.rotation = 0.0
+	body.linear_velocity = Vector2.ZERO
+	body.angular_velocity = 0.0
+	body.sleeping = false
+	body.set_deferred("freeze", false)
 
 func _draw() -> void:
 	if outer_bodies.is_empty():

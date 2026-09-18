@@ -9,6 +9,7 @@ const FLOOR_Y := 650.0
 
 var _terrain_guides: Array[PackedVector2Array] = []
 var _terrain_colors: Array[Color] = []
+var _pause_button: Button
 
 func _ready() -> void:
 	_build_course()
@@ -16,12 +17,12 @@ func _ready() -> void:
 	queue_redraw()
 
 func _physics_process(_delta: float) -> void:
-	if blob.get_center_position().y > 820.0:
+	if blob.get_center_position().y > 820.0 or blob.needs_safety_reset():
 		blob.reset_to_start()
 	camera.global_position = Vector2(clampf(blob.get_center_position().x, 640.0, WORLD_WIDTH - 640.0), 360.0)
 	queue_redraw()
 
-func _unhandled_input(event: InputEvent) -> void:
+func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		blob.set_touch_lift(event.pressed)
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -35,25 +36,46 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _build_mobile_controls() -> void:
 	var layer := CanvasLayer.new()
+	layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(layer)
 	var controls := HBoxContainer.new()
+	controls.process_mode = Node.PROCESS_MODE_ALWAYS
 	controls.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	controls.position = Vector2(-260, 18)
-	controls.size = Vector2(242, 54)
+	controls.position = Vector2(-337, 18)
+	controls.size = Vector2(319, 54)
 	controls.add_theme_constant_override("separation", 12)
 	layer.add_child(controls)
 	var restart := Button.new()
 	restart.text = "Restart"
 	restart.custom_minimum_size = Vector2(115, 54)
-	restart.pressed.connect(blob.reset_to_start)
+	restart.pressed.connect(_restart)
 	controls.add_child(restart)
+	_pause_button = Button.new()
+	_pause_button.text = "Pause"
+	_pause_button.custom_minimum_size = Vector2(65, 54)
+	_pause_button.process_mode = Node.PROCESS_MODE_ALWAYS
+	_pause_button.pressed.connect(_toggle_pause)
+	controls.add_child(_pause_button)
 	var menu := Button.new()
 	menu.text = "Menu"
 	menu.custom_minimum_size = Vector2(115, 54)
 	menu.pressed.connect(_return_to_menu)
 	controls.add_child(menu)
 
+func _restart() -> void:
+	_set_paused(false)
+	blob.reset_to_start()
+
+func _toggle_pause() -> void:
+	_set_paused(not get_tree().paused)
+
+func _set_paused(paused: bool) -> void:
+	blob.set_touch_lift(false)
+	get_tree().paused = paused
+	_pause_button.text = "Play" if paused else "Pause"
+
 func _return_to_menu() -> void:
+	_set_paused(false)
 	get_tree().change_scene_to_file("res://debug_launcher.tscn")
 
 func _build_course() -> void:
@@ -131,4 +153,4 @@ func _draw() -> void:
 		draw_string(ThemeDB.fallback_font, Vector2(26, 42), "F1: collider guides ON", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color("ffe29a"))
 	else:
 		draw_string(ThemeDB.fallback_font, Vector2(26, 42), "R: reset   F1: collider guides", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color("eaf6ff"))
-	draw_string(ThemeDB.fallback_font, Vector2(26, 70), "Hold Space / LMB: lift   Release: fall", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("cce6f3"))
+	draw_string(ThemeDB.fallback_font, Vector2(26, 70), "Hold screen / Space: lift   Release: fall", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("cce6f3"))
