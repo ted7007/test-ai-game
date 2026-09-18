@@ -6,7 +6,6 @@ const FLOOR_Y := 635.0
 const CEILING_HEIGHT := 85.0
 const HALF_VIEW_WIDTH := 640.0
 const FINISH_X := 3650.0
-const CAMERA_SCROLL_SPEED := 55.0
 const LEFT_WALL_INSET := 20.0
 const FALL_DEATH_Y := 820.0
 const INITIAL_PLAYER_POSITION := Vector2(260.0, 360.0)
@@ -14,6 +13,12 @@ const SPLIT_CHILD_SCALE := 0.65
 const SPLIT_SPAWN_OFFSET := 14.0
 const SPLIT_SEPARATION_IMPULSE := 35.0
 const PLAYER_SCENE := preload("res://player/player_blob.tscn")
+
+@export_category("Camera pacing")
+@export_range(0.0, 300.0, 5.0, "suffix:px/s") var camera_base_scroll_speed := 55.0
+@export_range(0.0, 500.0, 10.0, "suffix:px") var camera_catchup_start_distance := 220.0
+@export_range(0.0, 3.0, 0.05) var camera_catchup_gain := 0.65
+@export_range(55.0, 500.0, 5.0, "suffix:px/s") var camera_max_scroll_speed := 220.0
 
 @onready var camera: Camera2D = $Camera2D
 
@@ -52,8 +57,7 @@ func _physics_process(delta: float) -> void:
 			else:
 				eliminated.append(current_player)
 				last_elimination_reason = "Blob physics became unstable"
-	_camera_x = minf(_camera_x + CAMERA_SCROLL_SPEED * delta, WORLD_WIDTH - HALF_VIEW_WIDTH)
-	camera.global_position = Vector2(_camera_x, 360.0)
+	_update_camera(delta)
 	for current_player in _players:
 		if current_player in eliminated:
 			continue
@@ -122,6 +126,21 @@ func _win_level() -> void:
 func _reset_camera() -> void:
 	_camera_x = HALF_VIEW_WIDTH
 	camera.global_position = Vector2(_camera_x, 360.0)
+
+func _update_camera(delta: float) -> void:
+	var focus_x := _get_player_group_center_x()
+	var lead_distance := maxf(0.0, focus_x - _camera_x - camera_catchup_start_distance)
+	var scroll_speed := minf(camera_base_scroll_speed + lead_distance * camera_catchup_gain, maxf(camera_base_scroll_speed, camera_max_scroll_speed))
+	_camera_x = minf(_camera_x + scroll_speed * delta, WORLD_WIDTH - HALF_VIEW_WIDTH)
+	camera.global_position = Vector2(_camera_x, 360.0)
+
+func _get_player_group_center_x() -> float:
+	if _players.is_empty():
+		return _camera_x
+	var total_x := 0.0
+	for current_player in _players:
+		total_x += current_player.get_center_position().x
+	return total_x / float(_players.size())
 
 func _left_wall_x() -> float:
 	return _camera_x - HALF_VIEW_WIDTH + LEFT_WALL_INSET
