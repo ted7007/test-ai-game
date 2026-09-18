@@ -1,8 +1,7 @@
-class_name PrototypeABlob
+class_name PlayerBlob
 extends Node2D
 
-## Prototype A: a small RigidBody2D spring blob. All values are exposed so the
-## experiment can be tuned in the Inspector without editing this script.
+## Production spring-blob player. Gameplay tuning remains exposed in Inspector.
 @export_category("Blob shape")
 @export_range(4, 12, 1) var outer_body_count := 6
 @export_range(8.0, 40.0, 1.0, "suffix:px") var outer_radius := 16.0
@@ -78,6 +77,9 @@ func get_center_position() -> Vector2:
 
 func get_core_left_position() -> float:
 	return center_body.global_position.x - center_radius
+
+func get_velocity() -> Vector2:
+	return center_body.linear_velocity
 
 func needs_safety_reset() -> bool:
 	for body in outer_bodies:

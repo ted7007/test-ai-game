@@ -18,7 +18,7 @@ func _ready() -> void:
 	menu.add_child(_label("Choose a scene for this development build", 19, Color("b9d4e2")))
 	menu.add_child(_button("Production level", _on_production_pressed))
 	menu.add_child(_button("Physics playground — Prototype A", _on_playground_pressed))
-	menu.add_child(_label("The playground is experimental and does not change production gameplay.", 15, Color("ffd166")))
+	menu.add_child(_label("The playground and production level use the same PlayerBlob component.", 15, Color("ffd166")))
 
 func _label(value: String, font_size: int, text_color: Color) -> Label:
 	var label := Label.new()

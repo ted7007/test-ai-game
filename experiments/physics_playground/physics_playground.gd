@@ -11,7 +11,7 @@ const DEATH_WALL_COLOR := Color("d85f8e")
 @export_range(0.0, 300.0, 5.0, "suffix:px/s") var camera_scroll_speed := 55.0
 @export_range(0.0, 160.0, 5.0, "suffix:px") var left_wall_inset := 20.0
 @export_range(720.0, 1200.0, 10.0, "suffix:px") var fall_death_y := 820.0
-@onready var blob: PrototypeABlob = $PrototypeABlob
+@onready var blob: PlayerBlob = $PlayerBlob
 @onready var camera: Camera2D = $Camera2D
 
 var _terrain_guides: Array[PackedVector2Array] = []
