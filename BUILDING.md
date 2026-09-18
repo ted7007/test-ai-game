@@ -35,9 +35,9 @@
 
 ## Development APK с телефона
 
-После push в `main` откройте репозиторий на GitHub, затем **Actions → Android APK → последний успешный запуск → Artifacts**. Скачайте архив `android-apk-…`, распакуйте его на Android и откройте APK. При необходимости разрешите браузеру или файловому менеджеру установку приложений из неизвестного источника.
+После push в `main` откройте в репозитории **Releases → Latest Development Build** (`dev-latest`). Скачайте приложенный файл `badland-dev-YYYY-MM-DD-<short-sha>.apk` и откройте его на Android. Это прямая загрузка APK без ZIP-архива. При необходимости разрешите браузеру установку приложений из неизвестного источника.
 
-Артефакты development-сборок хранятся 14 дней. В имени APK присутствуют первые семь символов commit SHA.
+Prerelease `dev-latest` всегда содержит только последнюю development-сборку. Диагностический GitHub Actions Artifact также сохраняется на 14 дней. Development `versionName` имеет вид `0.1.0-dev+<short-sha>`; tracked Android preset при этом не изменяется.
 
 ## Release по тегу
 
