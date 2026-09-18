@@ -1,6 +1,6 @@
 extends CanvasLayer
 
-var _panel: PanelContainer
+var _panel: Panel
 var _details: Label
 var _events: Label
 var _badge: Button
@@ -34,35 +34,39 @@ func _build_ui() -> void:
 	_badge.pressed.connect(_on_badge_pressed)
 	add_child(_badge)
 
-	_panel = PanelContainer.new()
+	_panel = Panel.new()
 	_panel.position = Vector2(18, 48)
-	_panel.size = Vector2(490, 570)
+	_panel.size = Vector2(430, 360)
 	_panel.visible = false
 	_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(_panel)
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 6)
-	_panel.add_child(box)
 	var title := Label.new()
 	title.text = "DEBUG OVERLAY"
-	title.add_theme_font_size_override("font_size", 20)
-	box.add_child(title)
+	title.position = Vector2(12, 8)
+	title.add_theme_font_size_override("font_size", 17)
+	_panel.add_child(title)
 	_details = Label.new()
-	_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_details.add_theme_font_size_override("font_size", 16)
-	box.add_child(_details)
+	_details.position = Vector2(12, 34)
+	_details.size = Vector2(406, 108)
+	_details.add_theme_font_size_override("font_size", 13)
+	_panel.add_child(_details)
 	var events_title := Label.new()
 	events_title.text = "EVENTS"
-	events_title.add_theme_font_size_override("font_size", 17)
-	box.add_child(events_title)
+	events_title.position = Vector2(12, 145)
+	events_title.add_theme_font_size_override("font_size", 14)
+	_panel.add_child(events_title)
 	_events = Label.new()
-	_events.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_events.add_theme_font_size_override("font_size", 14)
-	box.add_child(_events)
+	_events.position = Vector2(12, 164)
+	_events.size = Vector2(406, 140)
+	_events.add_theme_font_size_override("font_size", 11)
+	_panel.add_child(_events)
 	var copy_button := Button.new()
 	copy_button.text = "COPY DEBUG INFO"
+	copy_button.position = Vector2(12, 314)
+	copy_button.size = Vector2(406, 34)
+	copy_button.add_theme_font_size_override("font_size", 14)
 	copy_button.pressed.connect(_copy_report)
-	box.add_child(copy_button)
+	_panel.add_child(copy_button)
 
 func _unhandled_input(input_event: InputEvent) -> void:
 	if not BuildInfo.is_development():
@@ -106,7 +110,7 @@ func _refresh() -> void:
 	var state := "paused" if get_tree().paused else str(_game_data.state)
 	var position: Vector2 = _game_data.position
 	var velocity: Vector2 = _game_data.velocity
-	_details.text = "BUILD\n%s\nCommit: %s\nBuilt: %s\n\nPERFORMANCE\nFPS: %d   Frame: %.1f ms\n\nGAME\nScene: %s\nState: %s\nElapsed: %.2f s\n\nPLAYER\nPosition: %.0f, %.0f\nVelocity: %.0f, %.0f\nVertical: %.0f\nAlive: %s\n\nINPUT\nTouch: %s\nLast input: %s" % [BuildInfo.version(), BuildInfo.commit(), BuildInfo.built_at(), Engine.get_frames_per_second(), _game_data.frame_time, _game_data.scene, state, _game_data.elapsed, position.x, position.y, velocity.x, velocity.y, _game_data.vertical_velocity, "yes" if _game_data.alive else "no", _game_data.touch, _game_data.input]
+	_details.text = "BUILD  %s | %s | %s\nPERF  %d FPS | %.1f ms\nGAME  %s | %s | %.1f s\nPLAYER  pos %.0f, %.0f | vel %.0f, %.0f\n        vertical %.0f | alive %s\nINPUT  touch %s | %s" % [BuildInfo.version(), BuildInfo.commit(), BuildInfo.built_at(), Engine.get_frames_per_second(), _game_data.frame_time, _game_data.scene, state, _game_data.elapsed, position.x, position.y, velocity.x, velocity.y, _game_data.vertical_velocity, "yes" if _game_data.alive else "no", _game_data.touch, _game_data.input]
 	_events.text = "\n".join(DebugLog.recent_events())
 
 func _copy_report() -> void:
