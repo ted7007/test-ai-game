@@ -15,6 +15,12 @@ run/main_scene="res://main.tscn"
 config/features=PackedStringArray("4.0", "GL Compatibility")
 config/icon="res://icon.svg"
 
+[autoload]
+
+BuildInfo="*res://debug/build_info.gd"
+DebugLog="*res://debug/debug_log.gd"
+DebugOverlay="*res://debug/debug_overlay.gd"
+
 [display]
 
 window/size/viewport_width=1280

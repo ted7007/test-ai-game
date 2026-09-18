@@ -37,7 +37,7 @@
 
 После push в `main` откройте в репозитории **Releases → Latest Development Build** (`dev-latest`). Скачайте приложенный файл `badland-dev-YYYY-MM-DD-<short-sha>.apk` и откройте его на Android. Это прямая загрузка APK без ZIP-архива. При необходимости разрешите браузеру установку приложений из неизвестного источника.
 
-Prerelease `dev-latest` всегда содержит только последнюю development-сборку. Диагностический GitHub Actions Artifact также сохраняется на 14 дней. Development `versionName` имеет вид `0.1.0-dev+<short-sha>`; tracked Android preset при этом не изменяется.
+Prerelease `dev-latest` всегда содержит только последнюю development-сборку. Диагностический GitHub Actions Artifact также сохраняется на 14 дней. Development `versionName` имеет вид `0.1.0-dev+<short-sha>`; tracked Android preset при этом не изменяется. В APK также встраиваются short SHA и UTC-время сборки для debug overlay.
 
 ## Release по тегу
 

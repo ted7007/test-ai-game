@@ -7,6 +7,10 @@ param(
 
     [string]$Godot = "",
 
+    [string]$CommitSha = "local",
+
+    [string]$BuildTimestamp = "",
+
     [switch]$SkipValidation
 )
 
@@ -15,6 +19,7 @@ Set-StrictMode -Version Latest
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $presetName = "Android"
+$metadataPath = Join-Path $projectRoot "debug/build_metadata.gd"
 
 if ([string]::IsNullOrWhiteSpace($Godot)) {
     if (-not [string]::IsNullOrWhiteSpace($env:GODOT_BIN)) {
@@ -80,18 +85,52 @@ if ([string]::IsNullOrWhiteSpace($version) -or -not $version.StartsWith("4.0")) 
 }
 Write-Host "Using Godot $version"
 
-if (-not $SkipValidation) {
-    Write-Host "Validating and importing project headlessly..."
-    Invoke-Godot @("--headless", "--path", $projectRoot, "--editor", "--quit")
+$presetPath = Join-Path $projectRoot "export_presets.cfg"
+$presetContent = Get-Content -LiteralPath $presetPath -Raw
+if ($presetContent -notmatch '(?m)^version/name="([^"]+)"$') {
+    throw "Android version/name was not found in export_presets.cfg."
 }
+$baseVersion = $Matches[1] -replace '-dev\+.*$', '' -replace '-dev$', ''
+$metadataVersion = if ($Mode -eq "debug") { "$baseVersion-dev" } else { $baseVersion }
+$metadataBuildType = if ($Mode -eq "debug") { "dev" } else { "release" }
 
-$exportFlag = if ($Mode -eq "release") { "--export-release" } else { "--export-debug" }
-Write-Host "Building $Mode APK: $Output"
-Invoke-Godot @("--headless", "--path", $projectRoot, $exportFlag, $presetName, $Output)
-
-if (-not (Test-Path -LiteralPath $Output -PathType Leaf)) {
-    throw "Godot reported success but did not create $Output"
+if (-not (Test-Path -LiteralPath $metadataPath -PathType Leaf)) {
+    throw "Build metadata source was not found: $metadataPath"
 }
+$originalMetadata = Get-Content -LiteralPath $metadataPath -Raw
+$safeCommitSha = $CommitSha -replace '[^0-9A-Za-z._-]', ''
+if ([string]::IsNullOrWhiteSpace($safeCommitSha)) {
+    $safeCommitSha = "local"
+}
+$safeTimestamp = $BuildTimestamp -replace '[^0-9A-Za-z: ._+-]', ''
+$generatedMetadata = @"
+## Generated temporarily by scripts/build_android.ps1; restored when the export finishes.
+extends RefCounted
 
-$apk = Get-Item -LiteralPath $Output
-Write-Host "APK created: $($apk.FullName) ($($apk.Length) bytes)"
+const VERSION := "$metadataVersion"
+const BUILD_TYPE := "$metadataBuildType"
+const COMMIT_SHA := "$safeCommitSha"
+const BUILD_TIMESTAMP := "$safeTimestamp"
+"@
+
+Set-Content -LiteralPath $metadataPath -Value $generatedMetadata -NoNewline
+
+try {
+    if (-not $SkipValidation) {
+        Write-Host "Validating and importing project headlessly..."
+        Invoke-Godot @("--headless", "--path", $projectRoot, "--editor", "--quit")
+    }
+
+    $exportFlag = if ($Mode -eq "release") { "--export-release" } else { "--export-debug" }
+    Write-Host "Building $Mode APK: $Output"
+    Invoke-Godot @("--headless", "--path", $projectRoot, $exportFlag, $presetName, $Output)
+
+    if (-not (Test-Path -LiteralPath $Output -PathType Leaf)) {
+        throw "Godot reported success but did not create $Output"
+    }
+
+    $apk = Get-Item -LiteralPath $Output
+    Write-Host "APK created: $($apk.FullName) ($($apk.Length) bytes)"
+} finally {
+    Set-Content -LiteralPath $metadataPath -Value $originalMetadata -NoNewline
+}

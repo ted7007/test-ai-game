@@ -16,6 +16,8 @@ var velocity_y := 0.0
 var touching := false
 var dead := false
 var won := false
+var elapsed_level_time := 0.0
+var last_input_type := "-"
 var obstacles: Array[Rect2] = [
 	Rect2(820, 85, 120, 300),
 	Rect2(1230, 390, 120, 245),
@@ -28,37 +30,55 @@ var obstacles: Array[Rect2] = [
 
 func _ready() -> void:
 	get_viewport().size_changed.connect(queue_redraw)
+	DebugLog.event("Player spawned")
 	queue_redraw()
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch and DebugOverlay.is_badge_hit(event.position):
+		return
 	if event is InputEventScreenTouch:
 		touching = event.pressed
+		last_input_type = "touch pressed" if event.pressed else "touch released"
+		DebugLog.event("Touch pressed" if event.pressed else "Touch released")
 	if event is InputEventScreenDrag:
 		touching = true
+		last_input_type = "touch drag"
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		last_input_type = "mouse pressed" if event.pressed else "mouse released"
+		DebugLog.event("Mouse pressed" if event.pressed else "Mouse released")
 	if event.is_action_pressed("ui_accept") and (dead or won):
+		last_input_type = "restart key"
 		restart()
 
 func _physics_process(delta: float) -> void:
 	if dead or won:
+		_publish_debug_data(delta)
 		queue_redraw()
 		return
+	elapsed_level_time += delta
 	var lifting: bool = touching or Input.is_action_pressed("fly")
 	velocity_y += (-LIFT if lifting else GRAVITY) * delta
 	velocity_y = clamp(velocity_y, -470.0, MAX_FALL)
 	player_pos += Vector2(SPEED * delta, velocity_y * delta)
 	var player_box: Rect2 = Rect2(player_pos - Vector2.ONE * PLAYER_RADIUS, Vector2.ONE * PLAYER_RADIUS * 2.0)
 	if player_pos.y - PLAYER_RADIUS <= CEILING_Y or player_pos.y + PLAYER_RADIUS >= FLOOR_Y:
-		die()
+		die("Boundary")
 	for obstacle in obstacles:
 		if player_box.intersects(obstacle):
-			die()
+			DebugLog.event("Collision", "Obstacle")
+			die("Obstacle")
 	if player_pos.x >= FINISH_X:
 		won = true
+		DebugLog.event("Level finished")
+	_publish_debug_data(delta)
 	queue_redraw()
 
-func die() -> void:
+func die(reason: String = "") -> void:
+	if dead:
+		return
 	dead = true
 	touching = false
+	DebugLog.event("Player died", reason)
 
 func restart() -> void:
 	player_pos = Vector2(260.0, 360.0)
@@ -66,7 +86,24 @@ func restart() -> void:
 	dead = false
 	won = false
 	touching = false
+	elapsed_level_time = 0.0
+	DebugLog.event("Restart")
 	queue_redraw()
+
+func _publish_debug_data(delta: float) -> void:
+	var state := "dead" if dead else ("finished" if won else "playing")
+	DebugOverlay.set_game_data({
+		"scene": get_tree().current_scene.name,
+		"state": state,
+		"elapsed": elapsed_level_time,
+		"position": player_pos,
+		"velocity": Vector2(SPEED if not dead and not won else 0.0, velocity_y),
+		"vertical_velocity": velocity_y,
+		"alive": not dead,
+		"touch": "pressed" if touching else "released",
+		"input": last_input_type,
+		"frame_time": delta * 1000.0,
+	})
 
 func _draw() -> void:
 	var size: Vector2 = get_viewport_rect().size

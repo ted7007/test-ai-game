@@ -130,8 +130,8 @@ jobs:
         shell: bash
         run: |
           short_sha="${GITHUB_SHA::7}"
-          built_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          build_date="${built_at%%T*}"
+          built_at="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          build_date="$(date -u +'%Y-%m-%d')"
           echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
           echo "built_at=${built_at}" >> "$GITHUB_OUTPUT"
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
@@ -159,7 +159,7 @@ jobs:
 
       - name: Validate project and build Android APK
         shell: pwsh
-        run: ./scripts/build_android.ps1 -Godot "$HOME/.local/bin/godot" -Mode "${{ steps.apk.outputs.mode }}" -Output "build/${{ steps.apk.outputs.name }}"
+        run: ./scripts/build_android.ps1 -Godot "$HOME/.local/bin/godot" -Mode "${{ steps.apk.outputs.mode }}" -Output "build/${{ steps.apk.outputs.name }}" -CommitSha "${{ steps.apk.outputs.short_sha }}" -BuildTimestamp "${{ steps.apk.outputs.built_at }}"
 
       - name: Upload development APK artifact
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
