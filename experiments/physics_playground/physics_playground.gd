@@ -11,6 +11,7 @@ const SPLIT_CHILD_SCALE := 0.65
 const SPLIT_SPAWN_OFFSET := 14.0
 const SPLIT_SEPARATION_IMPULSE := 35.0
 const PLAYER_SCENE := preload("res://player/player_blob.tscn")
+const PAUSE_MENU_SCENE := preload("res://ui/pause_menu.tscn")
 
 @export var show_collider_guides := false
 @export_category("Camera pacing")
@@ -26,8 +27,7 @@ const PLAYER_SCENE := preload("res://player/player_blob.tscn")
 var _players: Array[PlayerBlob] = []
 var _terrain_guides: Array[PackedVector2Array] = []
 var _terrain_colors: Array[Color] = []
-var _pause_button: Button
-var _game_over_label: Label
+var _pause_menu: GamePauseMenu
 var _camera_x := HALF_VIEW_WIDTH
 var _game_over := false
 var _has_split := false
@@ -78,78 +78,34 @@ func _input(event: InputEvent) -> void:
 		elif event.keycode == KEY_F1:
 			show_collider_guides = not show_collider_guides
 			queue_redraw()
-		elif event.keycode == KEY_ESCAPE:
-			get_tree().change_scene_to_file("res://debug_launcher.tscn")
 
 func _build_mobile_controls() -> void:
-	var layer := CanvasLayer.new()
-	layer.process_mode = Node.PROCESS_MODE_ALWAYS
-	add_child(layer)
-	var controls := HBoxContainer.new()
-	controls.process_mode = Node.PROCESS_MODE_ALWAYS
-	controls.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	controls.position = Vector2(-337, 18)
-	controls.size = Vector2(319, 54)
-	controls.add_theme_constant_override("separation", 12)
-	layer.add_child(controls)
-	var restart := Button.new()
-	restart.text = "Restart"
-	restart.custom_minimum_size = Vector2(115, 54)
-	restart.pressed.connect(_restart)
-	controls.add_child(restart)
-	_pause_button = Button.new()
-	_pause_button.text = "Pause"
-	_pause_button.custom_minimum_size = Vector2(65, 54)
-	_pause_button.process_mode = Node.PROCESS_MODE_ALWAYS
-	_pause_button.pressed.connect(_toggle_pause)
-	controls.add_child(_pause_button)
-	var menu := Button.new()
-	menu.text = "Menu"
-	menu.custom_minimum_size = Vector2(115, 54)
-	menu.pressed.connect(_return_to_menu)
-	controls.add_child(menu)
-	_game_over_label = Label.new()
-	_game_over_label.process_mode = Node.PROCESS_MODE_ALWAYS
-	_game_over_label.set_anchors_preset(Control.PRESET_CENTER)
-	_game_over_label.position = Vector2(-300, -90)
-	_game_over_label.size = Vector2(600, 180)
-	_game_over_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_game_over_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_game_over_label.add_theme_font_size_override("font_size", 32)
-	_game_over_label.add_theme_color_override("font_color", Color("ffd166"))
-	_game_over_label.visible = false
-	layer.add_child(_game_over_label)
+	_pause_menu = PAUSE_MENU_SCENE.instantiate() as GamePauseMenu
+	_pause_menu.restart_requested.connect(_restart)
+	_pause_menu.menu_requested.connect(_return_to_menu)
+	_pause_menu.pause_changed.connect(_on_pause_changed)
+	add_child(_pause_menu)
 
 func _restart() -> void:
 	_game_over = false
 	_has_split = false
 	_touch_lift = false
-	_game_over_label.visible = false
-	_pause_button.disabled = false
-	_set_paused(false)
+	_pause_menu.close_menu()
 	_reset_camera()
 	_clear_players()
 	_spawn_player(INITIAL_PLAYER_POSITION, 1.0, true, Vector2.ZERO, Vector2.ZERO)
 
-func _toggle_pause() -> void:
-	_set_paused(not get_tree().paused)
-
-func _set_paused(paused: bool) -> void:
+func _on_pause_changed(_paused: bool) -> void:
 	_touch_lift = false
 	for current_player in _players:
 		current_player.set_touch_lift(false)
-	get_tree().paused = paused
-	_pause_button.text = "Play" if paused else "Pause"
 
 func _game_over_now(reason: String) -> void:
 	_game_over = true
 	_touch_lift = false
 	for current_player in _players:
 		current_player.set_touch_lift(false)
-	_game_over_label.text = "GAME OVER\n%s\nTap Restart" % reason
-	_game_over_label.visible = true
-	_pause_button.disabled = true
-	get_tree().paused = true
+	_pause_menu.show_menu(false, "GAME OVER\n%s" % reason)
 
 func _reset_camera() -> void:
 	_camera_x = HALF_VIEW_WIDTH
@@ -221,7 +177,6 @@ func _clear_players() -> void:
 		_remove_player(current_player)
 
 func _return_to_menu() -> void:
-	_set_paused(false)
 	get_tree().change_scene_to_file("res://debug_launcher.tscn")
 
 func _build_course() -> void:

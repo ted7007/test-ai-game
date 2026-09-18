@@ -13,6 +13,7 @@ const SPLIT_CHILD_SCALE := 0.65
 const SPLIT_SPAWN_OFFSET := 14.0
 const SPLIT_SEPARATION_IMPULSE := 35.0
 const PLAYER_SCENE := preload("res://player/player_blob.tscn")
+const PAUSE_MENU_SCENE := preload("res://ui/pause_menu.tscn")
 
 @export_category("Camera pacing")
 @export_range(0.0, 300.0, 5.0, "suffix:px/s") var camera_base_scroll_speed := 55.0
@@ -31,8 +32,7 @@ var _game_over := false
 var _won := false
 var _has_split := false
 var _touch_lift := false
-var _restart_button: Button
-var _status_label: Label
+var _pause_menu: GamePauseMenu
 
 func _ready() -> void:
 	_register_player($PlayerBlob)
@@ -97,8 +97,6 @@ func _restart() -> void:
 	_clear_players()
 	_spawn_player(INITIAL_PLAYER_POSITION, 1.0, true, Vector2.ZERO, Vector2.ZERO)
 	_reset_camera()
-	_status_label.visible = false
-	_restart_button.visible = false
 	DebugLog.event("Production level restarted")
 
 func _end_attempt(reason: String) -> void:
@@ -106,10 +104,7 @@ func _end_attempt(reason: String) -> void:
 	_touch_lift = false
 	for current_player in _players:
 		current_player.set_touch_lift(false)
-	_status_label.text = "GAME OVER\n%s" % reason
-	_status_label.visible = true
-	_restart_button.visible = true
-	get_tree().paused = true
+	_pause_menu.show_menu(false, "GAME OVER\n%s" % reason)
 	DebugLog.event("Production attempt ended", reason)
 
 func _win_level() -> void:
@@ -117,10 +112,7 @@ func _win_level() -> void:
 	_touch_lift = false
 	for current_player in _players:
 		current_player.set_touch_lift(false)
-	_status_label.text = "FINISH!"
-	_status_label.visible = true
-	_restart_button.visible = true
-	get_tree().paused = true
+	_pause_menu.show_menu(false, "FINISH!")
 	DebugLog.event("Production level finished")
 
 func _reset_camera() -> void:
@@ -241,29 +233,19 @@ func _add_polygon(body_name: String, points: PackedVector2Array, color: Color) -
 	_terrain_colors.append(color)
 
 func _build_ui() -> void:
-	var layer := CanvasLayer.new()
-	layer.process_mode = Node.PROCESS_MODE_ALWAYS
-	add_child(layer)
-	_restart_button = Button.new()
-	_restart_button.process_mode = Node.PROCESS_MODE_ALWAYS
-	_restart_button.text = "Restart"
-	_restart_button.position = Vector2(1080, 18)
-	_restart_button.size = Vector2(170, 58)
-	_restart_button.add_theme_font_size_override("font_size", 22)
-	_restart_button.visible = false
-	_restart_button.pressed.connect(_restart)
-	layer.add_child(_restart_button)
-	_status_label = Label.new()
-	_status_label.process_mode = Node.PROCESS_MODE_ALWAYS
-	_status_label.set_anchors_preset(Control.PRESET_CENTER)
-	_status_label.position = Vector2(-300, -70)
-	_status_label.size = Vector2(600, 140)
-	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_status_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_status_label.add_theme_font_size_override("font_size", 42)
-	_status_label.add_theme_color_override("font_color", Color("ffd166"))
-	_status_label.visible = false
-	layer.add_child(_status_label)
+	_pause_menu = PAUSE_MENU_SCENE.instantiate() as GamePauseMenu
+	_pause_menu.restart_requested.connect(_restart)
+	_pause_menu.menu_requested.connect(_return_to_menu)
+	_pause_menu.pause_changed.connect(_on_pause_changed)
+	add_child(_pause_menu)
+
+func _on_pause_changed(_paused: bool) -> void:
+	_touch_lift = false
+	for current_player in _players:
+		current_player.set_touch_lift(false)
+
+func _return_to_menu() -> void:
+	get_tree().change_scene_to_file("res://debug_launcher.tscn")
 
 func _publish_debug_data(delta: float) -> void:
 	var state := "game_over" if _game_over else ("finished" if _won else "playing")
