@@ -17,9 +17,15 @@ extends Node2D
 @export_range(0.0, 100.0, 0.5) var spring_damping := 14.0
 @export_range(1.0, 300.0, 1.0, "suffix:px") var spring_max_length := 110.0
 @export_range(50.0, 400.0, 5.0, "suffix:px") var safety_reset_radius := 150.0
-@export_range(0.05, 1.0, 0.05) var minimum_thickness_ratio := 0.20
+@export_range(0.05, 1.0, 0.05) var minimum_thickness_ratio := 0.15
 @export_range(0.0, 500.0, 5.0) var shape_recovery_stiffness := 90.0
 @export_range(0.0, 5000.0, 50.0) var max_shape_recovery_force := 1400.0
+
+@export_category("Snag recovery")
+@export_range(1.0, 3.0, 0.05) var snag_stretch_ratio := 1.35
+@export_range(1.0, 2.0, 0.05) var snag_recover_ratio := 1.15
+@export_range(0.05, 1.0, 0.05, "suffix:s") var snag_release_delay := 0.20
+@export_range(0.0, 5000.0, 50.0) var snag_catchup_force := 2200.0
 
 @export_category("Movement")
 @export_range(0.0, 4000.0, 10.0) var forward_force := 360.0
@@ -37,13 +43,16 @@ var center_body: RigidBody2D
 var outer_bodies: Array[RigidBody2D] = []
 var _outline := PackedVector2Array()
 var _touch_lift := false
+var _snag_timers := PackedFloat32Array()
+var _snag_releasing := PackedByteArray()
 
 func _ready() -> void:
 	_build_bodies()
 	queue_redraw()
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	var lift := _touch_lift or Input.is_action_pressed("fly")
+	_update_snag_recovery(delta)
 	_apply_shape_recovery()
 	for body in outer_bodies:
 		_apply_control(body, lift)
@@ -59,6 +68,9 @@ func reset_to_start() -> void:
 	for i in outer_bodies.size():
 		var angle := TAU * float(i) / float(outer_bodies.size())
 		_reset_body(outer_bodies[i], Vector2.RIGHT.rotated(angle) * rest_radius)
+		outer_bodies[i].collision_mask = 1
+		_snag_timers[i] = 0.0
+		_snag_releasing[i] = 0
 	queue_redraw()
 
 func get_center_position() -> Vector2:
@@ -97,6 +109,8 @@ func _build_bodies() -> void:
 		var opposite_offset := outer_body_count / 2
 		for i in opposite_offset:
 			_make_spring(outer_bodies[i], outer_bodies[i + opposite_offset], brace_stiffness, rest_radius * 2.0)
+	_snag_timers.resize(outer_bodies.size())
+	_snag_releasing.resize(outer_bodies.size())
 
 func _make_body(body_name: String, body_position: Vector2, collision_radius: float) -> RigidBody2D:
 	var body := RigidBody2D.new()
@@ -165,6 +179,31 @@ func _apply_shape_recovery() -> void:
 		outer_bodies[i].apply_central_force(recovery)
 		total_force += recovery
 	center_body.apply_central_force(-total_force)
+
+func _update_snag_recovery(delta: float) -> void:
+	var center_position := center_body.global_position
+	for i in outer_bodies.size():
+		var body := outer_bodies[i]
+		var offset := body.global_position - center_position
+		var distance := offset.length()
+		if _snag_releasing[i] != 0:
+			body.collision_mask = 0
+			if distance > 0.01:
+				body.apply_central_force(-offset.normalized() * snag_catchup_force)
+			if distance <= rest_radius * snag_recover_ratio:
+				body.collision_mask = 1
+				_snag_timers[i] = 0.0
+				_snag_releasing[i] = 0
+			continue
+		var trailing := offset.x < -rest_radius * 0.75
+		var stretched := distance > rest_radius * snag_stretch_ratio
+		if trailing and stretched:
+			_snag_timers[i] += delta
+			if _snag_timers[i] >= snag_release_delay:
+				_snag_releasing[i] = 1
+				body.collision_mask = 0
+		else:
+			_snag_timers[i] = maxf(0.0, _snag_timers[i] - delta * 2.0)
 
 func _draw() -> void:
 	if outer_bodies.is_empty():
