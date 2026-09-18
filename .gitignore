@@ -1,2 +1,8 @@
 # Godot 4+ specific ignores
 .godot/
+.tooling/
+build/
+android-sdk/
+jdk/
+*.keystore
+*.jks
