@@ -33,7 +33,7 @@ func _physics_process(delta: float) -> void:
 	camera.global_position = Vector2(_camera_x, 360.0)
 	if blob.get_center_position().y > fall_death_y:
 		_game_over_now("Fell below the level")
-	elif blob.get_leftmost_position() <= _left_wall_x():
+	elif blob.get_core_left_position() <= _left_wall_x():
 		_game_over_now("Caught by the left wall")
 	queue_redraw()
 
