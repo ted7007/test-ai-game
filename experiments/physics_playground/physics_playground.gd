@@ -3,6 +3,9 @@ extends Node2D
 const WORLD_WIDTH := 2400.0
 const FLOOR_Y := 650.0
 const HALF_VIEW_WIDTH := 640.0
+const OBSTACLE_COLOR := Color("f3a6c8")
+const OBSTACLE_OUTLINE_COLOR := Color("ffe3f0")
+const DEATH_WALL_COLOR := Color("d85f8e")
 
 @export var show_collider_guides := false
 @export_range(0.0, 300.0, 5.0, "suffix:px/s") var camera_scroll_speed := 55.0
@@ -124,14 +127,14 @@ func _return_to_menu() -> void:
 	get_tree().change_scene_to_file("res://debug_launcher.tscn")
 
 func _build_course() -> void:
-	_add_rect("Floor", Rect2(1200, FLOOR_Y + 30, WORLD_WIDTH, 60), Color("19364b"), "Ровный пол")
-	_add_polygon("Slope", PackedVector2Array([Vector2(380, FLOOR_Y), Vector2(650, FLOOR_Y), Vector2(650, 480), Vector2(380, FLOOR_Y)]), Color("315a6f"), "Наклон")
-	_add_rect("Wall", Rect2(790, 270, 44, 380), Color("8f4051"), "Вертикальная стена")
-	_add_circle("RoundObstacle", Vector2(1080, 510), 88.0, Color("477b76"), "Закруглённый obstacle")
-	_add_rect("PassageTop", Rect2(1360, 85, 48, 245), Color("6a4b86"), "Узкий проход")
-	_add_rect("PassageBottom", Rect2(1360, 410, 48, 240), Color("6a4b86"), "")
-	_add_polygon("Edge", PackedVector2Array([Vector2(1680, FLOOR_Y), Vector2(1720, FLOOR_Y), Vector2(1720, 500)]), Color("a46a37"), "Край препятствия")
-	_add_rect("DragMarker", Rect2(1900, FLOOR_Y - 8, 310, 8), Color("2a5770"), "Падение и волочение")
+	_add_rect("Floor", Rect2(1200, FLOOR_Y + 30, WORLD_WIDTH, 60), OBSTACLE_COLOR, "Ровный пол")
+	_add_polygon("Slope", PackedVector2Array([Vector2(380, FLOOR_Y), Vector2(650, FLOOR_Y), Vector2(650, 480), Vector2(380, FLOOR_Y)]), OBSTACLE_COLOR, "Наклон")
+	_add_rect("Wall", Rect2(790, 270, 44, 380), OBSTACLE_COLOR, "Вертикальная стена")
+	_add_circle("RoundObstacle", Vector2(1080, 510), 88.0, OBSTACLE_COLOR, "Закруглённый obstacle")
+	_add_rect("PassageTop", Rect2(1360, 85, 48, 245), OBSTACLE_COLOR, "Узкий проход")
+	_add_rect("PassageBottom", Rect2(1360, 410, 48, 240), OBSTACLE_COLOR, "")
+	_add_polygon("Edge", PackedVector2Array([Vector2(1680, FLOOR_Y), Vector2(1720, FLOOR_Y), Vector2(1720, 500)]), OBSTACLE_COLOR, "Край препятствия")
+	_add_rect("DragMarker", Rect2(1900, FLOOR_Y - 8, 310, 8), OBSTACLE_COLOR, "Падение и волочение")
 
 func _add_rect(body_name: String, rect: Rect2, color: Color, label: String) -> void:
 	var body := StaticBody2D.new()
@@ -193,8 +196,8 @@ func _draw() -> void:
 	for i in _terrain_guides.size():
 		var guide := _terrain_guides[i]
 		draw_colored_polygon(guide, _terrain_colors[i])
-		draw_polyline(guide + PackedVector2Array([guide[0]]), Color("90b7c6"), 2.0)
-	draw_rect(Rect2(_left_wall_x() - 14.0, 0.0, 14.0, 720.0), Color("b92f49"))
+		draw_polyline(guide + PackedVector2Array([guide[0]]), OBSTACLE_OUTLINE_COLOR, 2.0)
+	draw_rect(Rect2(_left_wall_x() - 14.0, 0.0, 14.0, 720.0), DEATH_WALL_COLOR)
 	if show_collider_guides:
 		draw_string(ThemeDB.fallback_font, Vector2(26, 42), "F1: collider guides ON", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color("ffe29a"))
 	else:
