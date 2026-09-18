@@ -1,6 +1,6 @@
 extends Node2D
 
-const WORLD_WIDTH := 2400.0
+const WORLD_WIDTH := 9600.0
 const FLOOR_Y := 650.0
 const HALF_VIEW_WIDTH := 640.0
 const OBSTACLE_COLOR := Color("f3a6c8")
@@ -127,14 +127,44 @@ func _return_to_menu() -> void:
 	get_tree().change_scene_to_file("res://debug_launcher.tscn")
 
 func _build_course() -> void:
-	_add_rect("Floor", Rect2(1200, FLOOR_Y + 30, WORLD_WIDTH, 60), OBSTACLE_COLOR, "Ровный пол")
-	_add_polygon("Slope", PackedVector2Array([Vector2(380, FLOOR_Y), Vector2(650, FLOOR_Y), Vector2(650, 480), Vector2(380, FLOOR_Y)]), OBSTACLE_COLOR, "Наклон")
+	_add_label(Vector2(120, 125), "УЧАСТОК 1 · базовые контакты")
+	_add_rect("Floor1", Rect2(0, FLOOR_Y, 2300, 70), OBSTACLE_COLOR, "Ровный пол")
+	_add_polygon("Slope", PackedVector2Array([Vector2(380, FLOOR_Y), Vector2(650, FLOOR_Y), Vector2(650, 480)]), OBSTACLE_COLOR, "Наклон")
 	_add_rect("Wall", Rect2(790, 270, 44, 380), OBSTACLE_COLOR, "Вертикальная стена")
 	_add_circle("RoundObstacle", Vector2(1080, 510), 88.0, OBSTACLE_COLOR, "Закруглённый obstacle")
 	_add_rect("PassageTop", Rect2(1360, 85, 48, 245), OBSTACLE_COLOR, "Узкий проход")
 	_add_rect("PassageBottom", Rect2(1360, 410, 48, 240), OBSTACLE_COLOR, "")
 	_add_polygon("Edge", PackedVector2Array([Vector2(1680, FLOOR_Y), Vector2(1720, FLOOR_Y), Vector2(1720, 500)]), OBSTACLE_COLOR, "Край препятствия")
-	_add_rect("DragMarker", Rect2(1900, FLOOR_Y - 8, 310, 8), OBSTACLE_COLOR, "Падение и волочение")
+	_add_label(Vector2(1910, 620), "Зона волочения")
+
+	_add_label(Vector2(2520, 125), "УЧАСТОК 2 · холмы и платформы")
+	_add_rect("Floor2", Rect2(2500, FLOOR_Y, 2100, 70), OBSTACLE_COLOR, "Восстановление после падения")
+	_add_circle("GroundBump", Vector2(2760, 590), 60.0, OBSTACLE_COLOR, "Круглый выступ")
+	_add_polygon("WideHill", PackedVector2Array([Vector2(3020, FLOOR_Y), Vector2(3320, 490), Vector2(3620, FLOOR_Y)]), OBSTACLE_COLOR, "Широкий холм")
+	_add_rect("HighPlatform", Rect2(3750, 510, 330, 40), OBSTACLE_COLOR, "Платформа")
+	_add_rect("LowCeiling", Rect2(4200, 120, 70, 300), OBSTACLE_COLOR, "Низкий потолок")
+	_add_polygon("ExitRamp", PackedVector2Array([Vector2(4380, FLOOR_Y), Vector2(4580, FLOOR_Y), Vector2(4580, 540)]), OBSTACLE_COLOR, "Выходной край")
+
+	_add_label(Vector2(4770, 125), "УЧАСТОК 3 · последовательные контакты")
+	_add_rect("Floor3", Rect2(4750, FLOOR_Y, 2150, 70), OBSTACLE_COLOR, "")
+	_add_polygon("TallRamp", PackedVector2Array([Vector2(4920, FLOOR_Y), Vector2(5270, FLOOR_Y), Vector2(5270, 440)]), OBSTACLE_COLOR, "Крутой подъём")
+	_add_circle("LargeRound", Vector2(5570, 500), 110.0, OBSTACLE_COLOR, "Крупный круг")
+	_add_rect("CorridorTop", Rect2(5940, 80, 70, 245), OBSTACLE_COLOR, "Коридор")
+	_add_rect("CorridorBottom", Rect2(5940, 435, 70, 215), OBSTACLE_COLOR, "")
+	_add_polygon("UpperEdge", PackedVector2Array([Vector2(6280, 210), Vector2(6480, 210), Vector2(6480, 330)]), OBSTACLE_COLOR, "Верхний край")
+	_add_polygon("LowerEdge", PackedVector2Array([Vector2(6280, 570), Vector2(6480, 450), Vector2(6480, 570)]), OBSTACLE_COLOR, "Нижний край")
+	_add_rect("ContactPost", Rect2(6740, 390, 44, 260), OBSTACLE_COLOR, "Столб")
+
+	_add_label(Vector2(7120, 125), "УЧАСТОК 4 · качение и восстановление")
+	_add_rect("Floor4", Rect2(7100, FLOOR_Y, 2500, 70), OBSTACLE_COLOR, "Длинный пол")
+	_add_circle("RollingBump1", Vector2(7360, 595), 55.0, OBSTACLE_COLOR, "Серия выступов")
+	_add_circle("RollingBump2", Vector2(7580, 575), 75.0, OBSTACLE_COLOR, "")
+	_add_circle("RollingBump3", Vector2(7830, 600), 50.0, OBSTACLE_COLOR, "")
+	_add_polygon("RecoveryHill", PackedVector2Array([Vector2(8050, FLOOR_Y), Vector2(8320, 500), Vector2(8590, FLOOR_Y)]), OBSTACLE_COLOR, "Холм восстановления")
+	_add_rect("FinalPassageTop", Rect2(8760, 90, 60, 250), OBSTACLE_COLOR, "Финальный проход")
+	_add_rect("FinalPassageBottom", Rect2(8760, 415, 60, 235), OBSTACLE_COLOR, "")
+	_add_circle("FinalRound", Vector2(9120, 520), 95.0, OBSTACLE_COLOR, "Финальный контакт")
+	_add_rect("EndWall", Rect2(9480, 190, 28, 460), OBSTACLE_COLOR, "Конец полигона")
 
 func _add_rect(body_name: String, rect: Rect2, color: Color, label: String) -> void:
 	var body := StaticBody2D.new()
