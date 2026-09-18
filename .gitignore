@@ -6,3 +6,9 @@ android-sdk/
 jdk/
 *.keystore
 *.jks
+*.p12
+*.idsig
+export_credentials.cfg
+.env
+.env.*
+.secrets/
