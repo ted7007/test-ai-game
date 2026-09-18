@@ -50,8 +50,7 @@ func _physics_process(delta: float) -> void:
 				current_player.reset_to_start()
 				_reset_camera()
 			else:
-				eliminated.append(current_player)
-				last_elimination_reason = "Blob physics became unstable"
+				current_player.recover_shape_in_place()
 	_update_camera(delta)
 	for current_player in _players:
 		if current_player in eliminated:

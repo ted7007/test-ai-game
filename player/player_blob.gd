@@ -27,6 +27,8 @@ signal split_requested(source, separation_axis: Vector2)
 @export_range(1.0, 2.0, 0.05) var snag_recover_ratio := 1.15
 @export_range(0.05, 1.0, 0.05, "suffix:s") var snag_release_delay := 0.20
 @export_range(0.0, 5000.0, 50.0) var snag_catchup_force := 2200.0
+@export_range(-1.0, 1.0, 0.05) var small_blob_snag_x_ratio := 0.25
+@export_range(0.25, 1.0, 0.05) var small_blob_snag_delay_scale := 0.65
 
 @export_category("Movement")
 @export_range(0.0, 4000.0, 10.0) var forward_force := 360.0
@@ -45,6 +47,7 @@ signal split_requested(source, separation_axis: Vector2)
 @export_range(-1.0, 0.0, 0.05) var crush_normal_dot_min := -0.90
 @export_range(-1.0, 0.0, 0.05) var crush_normal_dot_max := -0.35
 @export_range(0.2, 1.0, 0.01) var crush_compression_ratio := 0.82
+@export_range(0.25, 2.0, 0.05) var crush_tip_contact_span_ratio := 1.15
 @export_range(0.0, 20.0, 0.25) var crush_min_contact_impulse := 2.0
 @export_range(0.0, 1.0, 0.05) var crush_min_pressure_alignment := 0.35
 @export_range(0.05, 1.0, 0.05, "suffix:s") var crush_grace_period := 0.25
@@ -58,6 +61,8 @@ var _snag_timers := PackedFloat32Array()
 var _snag_releasing := PackedByteArray()
 var _contact_normals := PackedVector2Array()
 var _contact_impulses := PackedFloat32Array()
+var _contact_positions := PackedVector2Array()
+var _contact_is_round := PackedByteArray()
 var _size_scale := 1.0
 var _crush_timer := 0.0
 var _split_requested := false
@@ -119,9 +124,21 @@ func get_velocity() -> Vector2:
 
 func needs_safety_reset() -> bool:
 	for body in outer_bodies:
-		if body.global_position.distance_to(center_body.global_position) > safety_reset_radius * _size_scale:
+		if body.global_position.distance_to(center_body.global_position) > safety_reset_radius * maxf(1.0, _size_scale):
 			return true
 	return false
+
+func recover_shape_in_place() -> void:
+	var center_local_position := center_body.position
+	var inherited_velocity := center_body.linear_velocity
+	_reset_body(center_body, center_local_position, inherited_velocity)
+	for i in outer_bodies.size():
+		var angle := TAU * float(i) / float(outer_bodies.size())
+		_reset_body(outer_bodies[i], center_local_position + Vector2.RIGHT.rotated(angle) * _effective_rest_radius(), inherited_velocity)
+		outer_bodies[i].collision_mask = 3
+		_snag_timers[i] = 0.0
+		_snag_releasing[i] = 0
+	queue_redraw()
 
 func _apply_control(body: RigidBody2D, lift: bool) -> void:
 	body.apply_central_force(Vector2.RIGHT * forward_force)
@@ -190,11 +207,11 @@ func _make_spring(body_a: RigidBody2D, body_b: RigidBody2D, stiffness: float, re
 	spring.exclude_nodes_from_collision = true
 	add_child(spring)
 
-func _reset_body(body: RigidBody2D, local_position: Vector2) -> void:
+func _reset_body(body: RigidBody2D, local_position: Vector2, inherited_velocity := Vector2.ZERO) -> void:
 	body.freeze = true
 	body.position = local_position
 	body.rotation = 0.0
-	body.linear_velocity = Vector2.ZERO
+	body.linear_velocity = inherited_velocity
 	body.angular_velocity = 0.0
 	body.sleeping = false
 	body.set_deferred("freeze", false)
@@ -238,11 +255,16 @@ func _update_snag_recovery(delta: float) -> void:
 				_snag_timers[i] = 0.0
 				_snag_releasing[i] = 0
 			continue
-		var trailing := offset.x < -effective_rest_radius * 0.75
+		var trailing_limit := -effective_rest_radius * 0.75
+		var release_delay := snag_release_delay
+		if _size_scale < 1.0:
+			trailing_limit = effective_rest_radius * small_blob_snag_x_ratio
+			release_delay *= small_blob_snag_delay_scale
+		var trailing := offset.x < trailing_limit
 		var stretched := distance > effective_rest_radius * snag_stretch_ratio
 		if trailing and stretched:
 			_snag_timers[i] += delta
-			if _snag_timers[i] >= snag_release_delay:
+			if _snag_timers[i] >= release_delay:
 				_snag_releasing[i] = 1
 				body.collision_mask = 0
 		else:
@@ -266,10 +288,14 @@ func _update_crush_detection(delta: float, lift: bool) -> void:
 func _collect_environment_contacts() -> void:
 	_contact_normals.clear()
 	_contact_impulses.clear()
+	_contact_positions.clear()
+	_contact_is_round.clear()
 	for body in _all_bodies():
 		for contact_index in body.environment_contact_normals.size():
 			_contact_normals.append(body.environment_contact_normals[contact_index])
 			_contact_impulses.append(body.environment_contact_impulses[contact_index])
+			_contact_positions.append(body.environment_contact_positions[contact_index])
+			_contact_is_round.append(body.environment_contact_is_round[contact_index])
 
 func _find_crush_axis(lift: bool) -> Vector2:
 	if _contact_normals.size() < 2:
@@ -279,6 +305,8 @@ func _find_crush_axis(lift: bool) -> Vector2:
 			continue
 		var first_normal := _contact_normals[first_index]
 		for second_index in range(first_index + 1, _contact_normals.size()):
+			if _contact_is_round[first_index] != 0 or _contact_is_round[second_index] != 0:
+				continue
 			if _contact_impulses[second_index] < crush_min_contact_impulse:
 				continue
 			var second_normal := _contact_normals[second_index]
@@ -294,7 +322,9 @@ func _find_crush_axis(lift: bool) -> Vector2:
 			var axis := (first_normal - second_normal).normalized()
 			if axis.length_squared() <= 0.01:
 				continue
-			if _compression_ratio_on_axis(axis) <= crush_compression_ratio:
+			var compressed_between_surfaces := _compression_ratio_on_axis(axis) <= crush_compression_ratio
+			var close_to_sharp_tip := _contact_positions[first_index].distance_to(_contact_positions[second_index]) <= _effective_rest_radius() * crush_tip_contact_span_ratio
+			if compressed_between_surfaces or close_to_sharp_tip:
 				return axis
 	return Vector2.ZERO
 
