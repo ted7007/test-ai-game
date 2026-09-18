@@ -46,6 +46,7 @@ signal split_requested(source, separation_axis: Vector2)
 @export var can_split := true
 @export_range(-1.0, 0.0, 0.05) var crush_normal_dot_min := -0.90
 @export_range(-1.0, 0.0, 0.05) var crush_normal_dot_max := -0.35
+@export_range(-1.0, -0.90, 0.01) var crush_tip_normal_dot_min := -0.99
 @export_range(0.2, 1.0, 0.01) var crush_compression_ratio := 0.82
 @export_range(0.25, 2.0, 0.05) var crush_tip_contact_span_ratio := 1.15
 @export_range(0.0, 20.0, 0.25) var crush_min_contact_impulse := 2.0
@@ -311,7 +312,9 @@ func _find_crush_axis(lift: bool) -> Vector2:
 				continue
 			var second_normal := _contact_normals[second_index]
 			var normal_dot := first_normal.dot(second_normal)
-			if normal_dot < crush_normal_dot_min or normal_dot > crush_normal_dot_max:
+			var close_to_sharp_tip := _contact_positions[first_index].distance_to(_contact_positions[second_index]) <= _effective_rest_radius() * crush_tip_contact_span_ratio
+			var thin_tip_pair := close_to_sharp_tip and normal_dot >= crush_tip_normal_dot_min
+			if normal_dot > crush_normal_dot_max or (normal_dot < crush_normal_dot_min and not thin_tip_pair):
 				continue
 			var wedge_outward := first_normal + second_normal
 			if wedge_outward.length_squared() <= 0.01:
@@ -323,7 +326,6 @@ func _find_crush_axis(lift: bool) -> Vector2:
 			if axis.length_squared() <= 0.01:
 				continue
 			var compressed_between_surfaces := _compression_ratio_on_axis(axis) <= crush_compression_ratio
-			var close_to_sharp_tip := _contact_positions[first_index].distance_to(_contact_positions[second_index]) <= _effective_rest_radius() * crush_tip_contact_span_ratio
 			if compressed_between_surfaces or close_to_sharp_tip:
 				return axis
 	return Vector2.ZERO

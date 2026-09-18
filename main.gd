@@ -201,12 +201,12 @@ func _build_level() -> void:
 	_add_rect("SplitRouteRoof", Rect2(450, 300, 200, 30), Color("f3a6c8"))
 	_add_polygon("SplitRoutePoint", PackedVector2Array([
 		Vector2(500, 482.5),
-		Vector2(570, 440),
-		Vector2(570, 525),
+		Vector2(570, 430),
+		Vector2(570, 535),
 	]), Color("f3a6c8"))
-	_add_rect("SplitRouteSeparator", Rect2(570, 440, 80, 85), Color("f3a6c8"))
-	_add_rect("SplitRouteGateTop", Rect2(620, 330, 30, 35), Color("f3a6c8"))
-	_add_rect("SplitRouteGateBottom", Rect2(620, 600, 30, 35), Color("f3a6c8"))
+	_add_rect("SplitRouteSeparator", Rect2(570, 430, 80, 105), Color("f3a6c8"))
+	_add_rect("SplitRouteGateTop", Rect2(620, 330, 30, 52), Color("f3a6c8"))
+	_add_rect("SplitRouteGateBottom", Rect2(620, 583, 30, 52), Color("f3a6c8"))
 	_add_rect("Obstacle1", Rect2(820, 85, 120, 300), Color("f3a6c8"))
 	_add_rect("Obstacle2", Rect2(1230, 390, 120, 245), Color("f3a6c8"))
 	_add_rect("Obstacle3", Rect2(1640, 85, 120, 330), Color("f3a6c8"))
