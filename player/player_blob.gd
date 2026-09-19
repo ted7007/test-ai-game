@@ -92,6 +92,11 @@ func configure_variant(size_scale: float, allow_split: bool) -> void:
 	_size_scale = maxf(0.1, size_scale)
 	can_split = allow_split
 
+func cancel_split_request() -> void:
+	_split_requested = false
+	can_split = true
+	_crush_timer = 0.0
+
 func initialize_motion(inherited_velocity: Vector2, separation_impulse: Vector2) -> void:
 	for body in _all_bodies():
 		body.linear_velocity = inherited_velocity

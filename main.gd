@@ -10,7 +10,6 @@ const LEFT_WALL_INSET := 20.0
 const FALL_DEATH_Y := 820.0
 const INITIAL_PLAYER_POSITION := Vector2(260.0, 360.0)
 const SPLIT_CHILD_SCALE := 0.65
-const SPLIT_CHILD_CLEARANCE := 52.0
 const SPLIT_SEPARATION_IMPULSE := 35.0
 const PLAYER_SCENE := preload("res://player/player_blob.tscn")
 const PAUSE_MENU_SCENE := preload("res://ui/pause_menu.tscn")
@@ -202,19 +201,72 @@ func _replace_player_with_children(source: PlayerBlob, separation_axis: Vector2,
 	var axis := separation_axis.normalized()
 	if axis == Vector2.ZERO:
 		axis = Vector2.UP
+	var spawn_positions := _find_split_spawn_positions(source, split_origin, axis, child_count, child_scale)
+	if spawn_positions.is_empty():
+		source.cancel_split_request()
+		DebugLog.event("Split postponed", "No clear space for children")
+		return
 	_remove_player(source)
 	var max_centered_index := maxf(float(child_count - 1) * 0.5, 0.5)
 	for child_index in child_count:
 		var centered_index := float(child_index) - float(child_count - 1) * 0.5
 		var direction_factor := centered_index / max_centered_index if child_count > 1 else 0.0
-		var child_position := split_origin + axis * SPLIT_CHILD_CLEARANCE * direction_factor
 		var child_impulse := axis * separation_impulse * direction_factor
-		_spawn_player(child_position, child_scale, children_can_split, inherited_velocity, child_impulse, false)
+		_spawn_player(spawn_positions[child_index], child_scale, children_can_split, inherited_velocity, child_impulse, false)
 	# Split replaces one result participant with its children, rather than
 	# counting the disappearing source as an additional failed participant.
 	_total_participants += child_count - 1
 	_has_split = true
 	DebugLog.event("Player split", "%d children at %.2f scale" % [child_count, child_scale])
+
+func _find_split_spawn_positions(source: PlayerBlob, origin: Vector2, axis: Vector2, child_count: int, child_scale: float) -> Array[Vector2]:
+	var positions: Array[Vector2] = []
+	var fallback_positions: Array[Vector2] = []
+	var clearance_radius := (source.rest_radius + source.outer_radius) * child_scale
+	var forward_radius := (source.center_radius + source.outer_radius) * child_scale
+	var probe_shape := CircleShape2D.new()
+	probe_shape.radius = clearance_radius
+	var probe := PhysicsShapeQueryParameters2D.new()
+	probe.shape = probe_shape
+	probe.collision_mask = 1
+	var max_centered_index := maxf(float(child_count - 1) * 0.5, 0.5)
+	# Only runs on Split. Search backwards from the impact until every child has
+	# room for its resting silhouette, without knowing any level lane positions.
+	for backoff_step in 13:
+		var backoff := float(backoff_step) * 20.0
+		for spread_step in 5:
+			var spread := clearance_radius + 4.0 + float(spread_step) * 12.0
+			positions.clear()
+			var all_clear := true
+			for child_index in child_count:
+				var centered_index := float(child_index) - float(child_count - 1) * 0.5
+				var direction_factor := centered_index / max_centered_index if child_count > 1 else 0.0
+				var candidate := origin - Vector2.RIGHT * backoff + axis * spread * direction_factor
+				probe.transform = Transform2D(0.0, candidate)
+				if not get_world_2d().direct_space_state.intersect_shape(probe, 1).is_empty():
+					all_clear = false
+					break
+				for previous_position in positions:
+					if candidate.distance_to(previous_position) < clearance_radius * 2.0 + 4.0:
+						all_clear = false
+						break
+				if not all_clear:
+					break
+				positions.append(candidate)
+			if all_clear:
+				if fallback_positions.is_empty():
+					fallback_positions = positions.duplicate()
+				probe_shape.radius = forward_radius
+				var forward_clear := true
+				for child_position in positions:
+					probe.transform = Transform2D(0.0, child_position + Vector2.RIGHT * 80.0)
+					if not get_world_2d().direct_space_state.intersect_shape(probe, 1).is_empty():
+						forward_clear = false
+						break
+				probe_shape.radius = clearance_radius
+				if forward_clear:
+					return positions
+	return fallback_positions
 
 func _remove_player(current_player: PlayerBlob) -> void:
 	if current_player not in _players:
@@ -241,21 +293,20 @@ func _build_level() -> void:
 	_add_round_obstacle("RequiredSqueezeTop", Vector2(1300, 150), 155.0, terrain_color)
 	_add_round_obstacle("RequiredSqueezeBottom", Vector2(1300, 580), 165.0, terrain_color)
 
-	# Keep the 38 px channels, but make their entry tips steep. The previous
-	# 200 px tips produced almost parallel normals and could not satisfy the
-	# Split detector's forward-pressure alignment check.
-	_add_spiked_row("SplitRow1", 2220.0, 2250.0, 300.0, 25.0, 4000.0, terrain_color)
-	_add_spiked_row("SplitRow2", 2220.0, 2250.0, 363.0, 25.0, 4000.0, terrain_color)
-	_add_spiked_row("SplitRow3", 2220.0, 2250.0, 426.0, 25.0, 4000.0, terrain_color)
-	_add_spiked_row("SplitRow4", 2220.0, 2250.0, 489.0, 25.0, 4000.0, terrain_color)
-	_add_spiked_row("SplitRow5", 2220.0, 2250.0, 552.0, 25.0, 4000.0, terrain_color)
-	_add_spiked_row("SplitRow6", 2220.0, 2250.0, 615.0, 20.0, 4000.0, terrain_color)
-	_add_round_obstacle("SplitRow1Cap", Vector2(4000, 312.5), 12.5, terrain_color)
-	_add_round_obstacle("SplitRow2Cap", Vector2(4000, 375.5), 12.5, terrain_color)
-	_add_round_obstacle("SplitRow3Cap", Vector2(4000, 438.5), 12.5, terrain_color)
-	_add_round_obstacle("SplitRow4Cap", Vector2(4000, 501.5), 12.5, terrain_color)
-	_add_round_obstacle("SplitRow5Cap", Vector2(4000, 564.5), 12.5, terrain_color)
-	_add_round_obstacle("SplitRow6Cap", Vector2(4000, 625.0), 10.0, terrain_color)
+	# Steep tips and short 38 px throats stop a full-size blob and trigger Split.
+	# The long channels widen to 55 px so children can keep moving after spawning.
+	_add_spiked_row("SplitRow1", 2220.0, 2250.0, 2280.0, 300.0, 25.0, 8.0, 4000.0, terrain_color)
+	_add_spiked_row("SplitRow2", 2220.0, 2250.0, 2280.0, 363.0, 25.0, 8.0, 4000.0, terrain_color)
+	_add_spiked_row("SplitRow3", 2220.0, 2250.0, 2280.0, 426.0, 25.0, 8.0, 4000.0, terrain_color)
+	_add_spiked_row("SplitRow4", 2220.0, 2250.0, 2280.0, 489.0, 25.0, 8.0, 4000.0, terrain_color)
+	_add_spiked_row("SplitRow5", 2220.0, 2250.0, 2280.0, 552.0, 25.0, 8.0, 4000.0, terrain_color)
+	_add_spiked_row("SplitRow6", 2220.0, 2250.0, 2280.0, 615.0, 20.0, 8.0, 4000.0, terrain_color)
+	_add_round_obstacle("SplitRow1Cap", Vector2(4000, 312.5), 4.0, terrain_color)
+	_add_round_obstacle("SplitRow2Cap", Vector2(4000, 375.5), 4.0, terrain_color)
+	_add_round_obstacle("SplitRow3Cap", Vector2(4000, 438.5), 4.0, terrain_color)
+	_add_round_obstacle("SplitRow4Cap", Vector2(4000, 501.5), 4.0, terrain_color)
+	_add_round_obstacle("SplitRow5Cap", Vector2(4000, 564.5), 4.0, terrain_color)
+	_add_round_obstacle("SplitRow6Cap", Vector2(4000, 625.0), 4.0, terrain_color)
 
 	# Three tight rounded gates make the shared section physically dense while
 	# remaining recoverable. Their gaps require visible full-size deformation.
@@ -296,14 +347,15 @@ func _add_polygon(body_name: String, points: PackedVector2Array, color: Color) -
 	_terrain_guides.append(points)
 	_terrain_colors.append(color)
 
-func _add_spiked_row(body_name: String, tip_x: float, base_x: float, top_y: float, height: float, end_x: float, color: Color) -> void:
+func _add_spiked_row(body_name: String, tip_x: float, base_x: float, throat_end_x: float, top_y: float, height: float, rail_height: float, end_x: float, color: Color) -> void:
 	var middle_y := top_y + height * 0.5
 	_add_polygon("%sSpike" % body_name, PackedVector2Array([
 		Vector2(tip_x, middle_y),
 		Vector2(base_x, top_y),
 		Vector2(base_x, top_y + height),
 	]), color)
-	_add_rect("%sBeam" % body_name, Rect2(base_x, top_y, end_x - base_x, height), color)
+	_add_rect("%sThroat" % body_name, Rect2(base_x, top_y, throat_end_x - base_x, height), color)
+	_add_rect("%sRail" % body_name, Rect2(throat_end_x, middle_y - rail_height * 0.5, end_x - throat_end_x, rail_height), color)
 
 func _add_round_gap(body_name: String, center_x: float, gap_center_y: float, gap_height: float, radius: float, color: Color) -> void:
 	var half_gap := gap_height * 0.5
