@@ -16,10 +16,10 @@ const PLAYER_SCENE := preload("res://player/player_blob.tscn")
 const PAUSE_MENU_SCENE := preload("res://ui/pause_menu.tscn")
 
 @export_category("Camera pacing")
-@export_range(0.0, 300.0, 5.0, "suffix:px/s") var camera_base_scroll_speed := 80.0
-@export_range(0.0, 500.0, 10.0, "suffix:px") var camera_catchup_start_distance := 170.0
-@export_range(0.0, 3.0, 0.05) var camera_catchup_gain := 0.80
-@export_range(55.0, 500.0, 5.0, "suffix:px/s") var camera_max_scroll_speed := 275.0
+@export_range(0.0, 300.0, 5.0, "suffix:px/s") var camera_base_scroll_speed := 90.0
+@export_range(0.0, 500.0, 10.0, "suffix:px") var camera_catchup_start_distance := 110.0
+@export_range(0.0, 3.0, 0.05) var camera_catchup_gain := 0.90
+@export_range(55.0, 500.0, 5.0, "suffix:px/s") var camera_max_scroll_speed := 300.0
 
 @onready var camera: Camera2D = $Camera2D
 
@@ -246,19 +246,24 @@ func _build_level() -> void:
 	_add_spiked_row("SplitRowTop", 2350.0, 2450.0, 300.0, 25.0, 4000.0, terrain_color)
 	_add_spiked_row("SplitRowMiddle", 2350.0, 2450.0, 415.0, 25.0, 4000.0, terrain_color)
 	_add_spiked_row("SplitRowBottom", 2350.0, 2450.0, 530.0, 25.0, 4000.0, terrain_color)
+	# Alternating round protrusions make the separated channels active without
+	# turning them into precision passages or adding another Split surface.
+	_add_round_obstacle("SplitLaneUpperLow", Vector2(2900, 312.5), 25.0, terrain_color)
+	_add_round_obstacle("SplitLaneUpperHigh", Vector2(3450, 427.5), 25.0, terrain_color)
+	_add_round_obstacle("SplitLaneLowerLow", Vector2(3050, 427.5), 25.0, terrain_color)
+	_add_round_obstacle("SplitLaneLowerHigh", Vector2(3600, 542.5), 25.0, terrain_color)
 	_add_round_obstacle("SplitRowTopCap", Vector2(4000, 312.5), 12.5, terrain_color)
 	_add_round_obstacle("SplitRowMiddleCap", Vector2(4000, 427.5), 12.5, terrain_color)
 	_add_round_obstacle("SplitRowBottomCap", Vector2(4000, 542.5), 12.5, terrain_color)
 
-	# Shared physical playground for either the full-size blob or both children.
-	# Wide alternating shapes encourage edge contacts and recovery without a
-	# precision route or a mandatory death.
-	_add_round_obstacle("SharedFloorRoll", Vector2(4650, 675), 125.0, terrain_color)
-	_add_round_obstacle("SharedCeilingDrift", Vector2(5300, 55), 175.0, terrain_color)
-	_add_round_obstacle("SharedSqueezeTop", Vector2(5950, 150), 145.0, terrain_color)
-	_add_round_obstacle("SharedSqueezeBottom", Vector2(5950, 610), 145.0, terrain_color)
-	_add_round_obstacle("SharedRecoveryHill", Vector2(6650, 665), 170.0, terrain_color)
-	_add_round_obstacle("SharedCeilingExit", Vector2(7200, 115), 160.0, terrain_color)
+	# Three tight rounded gates make the shared section physically dense while
+	# remaining recoverable. Their gaps require visible full-size deformation.
+	_add_round_gap("SharedGateCenter", 4650.0, 360.0, 105.0, 165.0, terrain_color)
+	_add_round_obstacle("SharedCeilingDrift", Vector2(5100, 55), 150.0, terrain_color)
+	_add_round_gap("SharedGateHigh", 5500.0, 285.0, 100.0, 170.0, terrain_color)
+	_add_round_obstacle("SharedFloorRoll", Vector2(5950, 680), 130.0, terrain_color)
+	_add_round_gap("SharedGateLow", 6400.0, 430.0, 100.0, 170.0, terrain_color)
+	_add_round_obstacle("SharedCeilingExit", Vector2(7050, 100), 170.0, terrain_color)
 
 	# Rounded lips make the late floor gap readable. Holding lift provides ample
 	# recovery time; the final stretch after it is intentionally calm.
@@ -298,6 +303,11 @@ func _add_spiked_row(body_name: String, tip_x: float, base_x: float, top_y: floa
 		Vector2(base_x, top_y + height),
 	]), color)
 	_add_rect("%sBeam" % body_name, Rect2(base_x, top_y, end_x - base_x, height), color)
+
+func _add_round_gap(body_name: String, center_x: float, gap_center_y: float, gap_height: float, radius: float, color: Color) -> void:
+	var half_gap := gap_height * 0.5
+	_add_round_obstacle("%sTop" % body_name, Vector2(center_x, gap_center_y - half_gap - radius), radius, color)
+	_add_round_obstacle("%sBottom" % body_name, Vector2(center_x, gap_center_y + half_gap + radius), radius, color)
 
 func _add_round_obstacle(body_name: String, center: Vector2, radius: float, color: Color) -> void:
 	var body := StaticBody2D.new()
