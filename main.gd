@@ -1,11 +1,11 @@
 extends Node2D
 
 const VIEW := Vector2(1280.0, 720.0)
-const WORLD_WIDTH := 3800.0
+const WORLD_WIDTH := 17500.0
 const FLOOR_Y := 635.0
 const CEILING_HEIGHT := 85.0
 const HALF_VIEW_WIDTH := 640.0
-const FINISH_X := 3650.0
+const FINISH_X := 17200.0
 const LEFT_WALL_INSET := 20.0
 const FALL_DEATH_Y := 820.0
 const INITIAL_PLAYER_POSITION := Vector2(260.0, 360.0)
@@ -26,6 +26,9 @@ const PAUSE_MENU_SCENE := preload("res://ui/pause_menu.tscn")
 var _players: Array[PlayerBlob] = []
 var _terrain_guides: Array[PackedVector2Array] = []
 var _terrain_colors: Array[Color] = []
+var _terrain_circle_centers: Array[Vector2] = []
+var _terrain_circle_radii: Array[float] = []
+var _terrain_circle_colors: Array[Color] = []
 var _camera_x := HALF_VIEW_WIDTH
 var _elapsed := 0.0
 var _game_over := false
@@ -226,36 +229,60 @@ func _clear_players() -> void:
 		_remove_player(current_player)
 
 func _build_level() -> void:
+	var terrain_color := Color("f3a6c8")
 	_add_rect("Ceiling", Rect2(0, 0, WORLD_WIDTH, CEILING_HEIGHT), Color("f3a6c8"))
-	_add_rect("Floor", Rect2(0, FLOOR_Y, WORLD_WIDTH, 85), Color("f3a6c8"))
-	# Optional early Split route. The upper half stays open, while the lower
-	# route ends in two gaps that only the smaller children can pass.
-	_add_rect("SplitRouteRoof", Rect2(450, 300, 200, 30), Color("f3a6c8"))
+	# The floor is interrupted once late in the level by a forgiving recovery gap.
+	_add_rect("FloorBeforeGap", Rect2(0, FLOOR_Y, 13200, 85), terrain_color)
+	_add_rect("FloorAfterGap", Rect2(14500, FLOOR_Y, WORLD_WIDTH - 14500, 85), terrain_color)
+
+	# Safe introduction: open flight, a shallow floor contact, then one required
+	# rounded squeeze which cannot trigger Split.
+	_add_round_obstacle("IntroFloorBump", Vector2(1750, 690), 115.0, terrain_color)
+	_add_round_obstacle("RequiredSqueezeTop", Vector2(3300, 150), 155.0, terrain_color)
+	_add_round_obstacle("RequiredSqueezeBottom", Vector2(3300, 580), 165.0, terrain_color)
+
+	# Noticeable optional Split route. A full-size blob can take the open upper
+	# bypass; committing to the lower funnel produces two children reliably.
+	_add_rect("SplitRouteRoof", Rect2(4650, 285, 580, 30), terrain_color)
 	_add_polygon("SplitRouteSpikeTop", PackedVector2Array([
-		Vector2(515, 447.5),
-		Vector2(570, 430),
-		Vector2(570, 465),
-	]), Color("f3a6c8"))
+		Vector2(5160, 438),
+		Vector2(5230, 420),
+		Vector2(5230, 456),
+	]), terrain_color)
 	_add_polygon("SplitRouteSpikeMiddle", PackedVector2Array([
-		Vector2(515, 482.5),
-		Vector2(570, 465),
-		Vector2(570, 500),
-	]), Color("f3a6c8"))
+		Vector2(5160, 475),
+		Vector2(5230, 456),
+		Vector2(5230, 494),
+	]), terrain_color)
 	_add_polygon("SplitRouteSpikeBottom", PackedVector2Array([
-		Vector2(515, 517.5),
-		Vector2(570, 500),
-		Vector2(570, 535),
-	]), Color("f3a6c8"))
-	_add_rect("SplitRouteSeparator", Rect2(570, 430, 80, 105), Color("f3a6c8"))
-	_add_rect("SplitRouteGateTop", Rect2(620, 330, 30, 52), Color("f3a6c8"))
-	_add_rect("SplitRouteGateBottom", Rect2(620, 583, 30, 52), Color("f3a6c8"))
-	_add_rect("Obstacle1", Rect2(820, 85, 120, 300), Color("f3a6c8"))
-	_add_rect("Obstacle2", Rect2(1230, 390, 120, 245), Color("f3a6c8"))
-	_add_rect("Obstacle3", Rect2(1640, 85, 120, 330), Color("f3a6c8"))
-	_add_rect("Obstacle4", Rect2(2050, 410, 120, 225), Color("f3a6c8"))
-	_add_rect("Obstacle5", Rect2(2460, 85, 120, 285), Color("f3a6c8"))
-	_add_rect("Obstacle6", Rect2(2870, 365, 120, 270), Color("f3a6c8"))
-	_add_rect("Obstacle7", Rect2(3260, 85, 120, 315), Color("f3a6c8"))
+		Vector2(5160, 512),
+		Vector2(5230, 494),
+		Vector2(5230, 530),
+	]), terrain_color)
+	_add_rect("SplitRouteSeparator", Rect2(5230, 420, 1970, 110), terrain_color)
+	_add_rect("SplitRouteGateTop", Rect2(5350, 315, 40, 20), terrain_color)
+	_add_rect("SplitRouteGateBottom", Rect2(5350, 615, 40, 20), terrain_color)
+
+	# The children receive different but forgiving contacts before their paths
+	# reunite: a soft overhead brush above and a short floor drag below.
+	_add_round_obstacle("UpperRouteBrush", Vector2(6200, 285), 45.0, terrain_color)
+	_add_round_obstacle("LowerRouteRise", Vector2(6400, 660), 55.0, terrain_color)
+	_add_round_obstacle("SplitRouteMergeCap", Vector2(7200, 475), 55.0, terrain_color)
+
+	# Shared physical playground for either the full-size blob or both children.
+	# Wide alternating shapes encourage edge contacts and recovery without a
+	# precision route or a mandatory death.
+	_add_round_obstacle("SharedFloorRoll", Vector2(8500, 675), 125.0, terrain_color)
+	_add_round_obstacle("SharedCeilingDrift", Vector2(9450, 55), 175.0, terrain_color)
+	_add_round_obstacle("SharedSqueezeTop", Vector2(10600, 150), 145.0, terrain_color)
+	_add_round_obstacle("SharedSqueezeBottom", Vector2(10600, 610), 145.0, terrain_color)
+	_add_round_obstacle("SharedRecoveryHill", Vector2(11750, 665), 170.0, terrain_color)
+	_add_round_obstacle("SharedCeilingExit", Vector2(12500, 115), 160.0, terrain_color)
+
+	# Rounded lips make the late floor gap readable. Holding lift provides ample
+	# recovery time; the final stretch after it is intentionally calm.
+	_add_round_obstacle("RecoveryGapEntry", Vector2(13180, 675), 80.0, terrain_color)
+	_add_round_obstacle("RecoveryGapExit", Vector2(14520, 675), 80.0, terrain_color)
 
 func _add_rect(body_name: String, rect: Rect2, color: Color) -> void:
 	var body := StaticBody2D.new()
@@ -281,6 +308,21 @@ func _add_polygon(body_name: String, points: PackedVector2Array, color: Color) -
 	add_child(body)
 	_terrain_guides.append(points)
 	_terrain_colors.append(color)
+
+func _add_round_obstacle(body_name: String, center: Vector2, radius: float, color: Color) -> void:
+	var body := StaticBody2D.new()
+	body.name = body_name
+	body.collision_layer = 1
+	body.position = center
+	var collision := CollisionShape2D.new()
+	var shape := CircleShape2D.new()
+	shape.radius = radius
+	collision.shape = shape
+	body.add_child(collision)
+	add_child(body)
+	_terrain_circle_centers.append(center)
+	_terrain_circle_radii.append(radius)
+	_terrain_circle_colors.append(color)
 
 func _build_ui() -> void:
 	_pause_menu = PAUSE_MENU_SCENE.instantiate() as GamePauseMenu
@@ -325,12 +367,15 @@ func _publish_debug_data(delta: float) -> void:
 
 func _draw() -> void:
 	draw_rect(Rect2(0, 0, WORLD_WIDTH, VIEW.y), Color("10233b"))
-	for i in range(14):
+	for i in range(int(ceil(WORLD_WIDTH / 310.0)) + 1):
 		draw_circle(Vector2(float(i * 310), 250 + (i % 3) * 90), 150.0, Color("173653"))
 	for i in _terrain_guides.size():
 		var guide := _terrain_guides[i]
 		draw_colored_polygon(guide, _terrain_colors[i])
 		draw_polyline(guide + PackedVector2Array([guide[0]]), Color("ffe3f0"), 2.0)
+	for i in _terrain_circle_centers.size():
+		draw_circle(_terrain_circle_centers[i], _terrain_circle_radii[i], _terrain_circle_colors[i])
+		draw_arc(_terrain_circle_centers[i], _terrain_circle_radii[i], 0.0, TAU, 48, Color("ffe3f0"), 2.0, true)
 	draw_rect(Rect2(_left_wall_x() - 14.0, 0.0, 14.0, VIEW.y), Color("d85f8e"))
 	draw_rect(Rect2(FINISH_X, CEILING_HEIGHT, 20, FLOOR_Y - CEILING_HEIGHT), Color("61e786"))
 	draw_string(ThemeDB.fallback_font, Vector2(38, 48), "HOLD: LIFT  •  RELEASE: FALL", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color("eaf6ff"))
