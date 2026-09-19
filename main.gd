@@ -1,11 +1,11 @@
 extends Node2D
 
 const VIEW := Vector2(1280.0, 720.0)
-const WORLD_WIDTH := 17500.0
+const WORLD_WIDTH := 9800.0
 const FLOOR_Y := 635.0
 const CEILING_HEIGHT := 85.0
 const HALF_VIEW_WIDTH := 640.0
-const FINISH_X := 17200.0
+const FINISH_X := 9500.0
 const LEFT_WALL_INSET := 20.0
 const FALL_DEATH_Y := 820.0
 const INITIAL_PLAYER_POSITION := Vector2(260.0, 360.0)
@@ -16,10 +16,10 @@ const PLAYER_SCENE := preload("res://player/player_blob.tscn")
 const PAUSE_MENU_SCENE := preload("res://ui/pause_menu.tscn")
 
 @export_category("Camera pacing")
-@export_range(0.0, 300.0, 5.0, "suffix:px/s") var camera_base_scroll_speed := 75.0
-@export_range(0.0, 500.0, 10.0, "suffix:px") var camera_catchup_start_distance := 180.0
-@export_range(0.0, 3.0, 0.05) var camera_catchup_gain := 0.75
-@export_range(55.0, 500.0, 5.0, "suffix:px/s") var camera_max_scroll_speed := 260.0
+@export_range(0.0, 300.0, 5.0, "suffix:px/s") var camera_base_scroll_speed := 80.0
+@export_range(0.0, 500.0, 10.0, "suffix:px") var camera_catchup_start_distance := 170.0
+@export_range(0.0, 3.0, 0.05) var camera_catchup_gain := 0.80
+@export_range(55.0, 500.0, 5.0, "suffix:px/s") var camera_max_scroll_speed := 275.0
 
 @onready var camera: Camera2D = $Camera2D
 
@@ -232,57 +232,38 @@ func _build_level() -> void:
 	var terrain_color := Color("f3a6c8")
 	_add_rect("Ceiling", Rect2(0, 0, WORLD_WIDTH, CEILING_HEIGHT), Color("f3a6c8"))
 	# The floor is interrupted once late in the level by a forgiving recovery gap.
-	_add_rect("FloorBeforeGap", Rect2(0, FLOOR_Y, 13200, 85), terrain_color)
-	_add_rect("FloorAfterGap", Rect2(14500, FLOOR_Y, WORLD_WIDTH - 14500, 85), terrain_color)
+	_add_rect("FloorBeforeGap", Rect2(0, FLOOR_Y, 7600, 85), terrain_color)
+	_add_rect("FloorAfterGap", Rect2(8350, FLOOR_Y, WORLD_WIDTH - 8350, 85), terrain_color)
 
 	# Safe introduction: open flight, a shallow floor contact, then one required
 	# rounded squeeze which cannot trigger Split.
-	_add_round_obstacle("IntroFloorBump", Vector2(1750, 690), 115.0, terrain_color)
-	_add_round_obstacle("RequiredSqueezeTop", Vector2(3300, 150), 155.0, terrain_color)
-	_add_round_obstacle("RequiredSqueezeBottom", Vector2(3300, 580), 165.0, terrain_color)
+	_add_round_obstacle("IntroFloorBump", Vector2(650, 690), 115.0, terrain_color)
+	_add_round_obstacle("RequiredSqueezeTop", Vector2(1300, 150), 155.0, terrain_color)
+	_add_round_obstacle("RequiredSqueezeBottom", Vector2(1300, 580), 165.0, terrain_color)
 
-	# Noticeable optional Split route. A full-size blob can take the open upper
-	# bypass; committing to the lower funnel produces two children reliably.
-	_add_rect("SplitRouteRoof", Rect2(4650, 285, 580, 30), terrain_color)
-	_add_polygon("SplitRouteSpikeTop", PackedVector2Array([
-		Vector2(5160, 438),
-		Vector2(5230, 420),
-		Vector2(5230, 456),
-	]), terrain_color)
-	_add_polygon("SplitRouteSpikeMiddle", PackedVector2Array([
-		Vector2(5160, 475),
-		Vector2(5230, 456),
-		Vector2(5230, 494),
-	]), terrain_color)
-	_add_polygon("SplitRouteSpikeBottom", PackedVector2Array([
-		Vector2(5160, 512),
-		Vector2(5230, 494),
-		Vector2(5230, 530),
-	]), terrain_color)
-	_add_rect("SplitRouteSeparator", Rect2(5230, 420, 1970, 110), terrain_color)
-	_add_rect("SplitRouteGateTop", Rect2(5350, 315, 40, 20), terrain_color)
-	_add_rect("SplitRouteGateBottom", Rect2(5350, 615, 40, 20), terrain_color)
-
-	# The children receive different but forgiving contacts before their paths
-	# reunite: a soft overhead brush above and a short floor drag below.
-	_add_round_obstacle("UpperRouteBrush", Vector2(6200, 285), 45.0, terrain_color)
-	_add_round_obstacle("LowerRouteRise", Vector2(6400, 660), 55.0, terrain_color)
-	_add_round_obstacle("SplitRouteMergeCap", Vector2(7200, 475), 55.0, terrain_color)
+	# The spike array is visible immediately: the high route remains an optional
+	# full-size bypass, while the three 80–90 px lanes only fit Split children.
+	_add_spiked_row("SplitRowTop", 2350.0, 2450.0, 300.0, 25.0, 4000.0, terrain_color)
+	_add_spiked_row("SplitRowMiddle", 2350.0, 2450.0, 415.0, 25.0, 4000.0, terrain_color)
+	_add_spiked_row("SplitRowBottom", 2350.0, 2450.0, 530.0, 25.0, 4000.0, terrain_color)
+	_add_round_obstacle("SplitRowTopCap", Vector2(4000, 312.5), 12.5, terrain_color)
+	_add_round_obstacle("SplitRowMiddleCap", Vector2(4000, 427.5), 12.5, terrain_color)
+	_add_round_obstacle("SplitRowBottomCap", Vector2(4000, 542.5), 12.5, terrain_color)
 
 	# Shared physical playground for either the full-size blob or both children.
 	# Wide alternating shapes encourage edge contacts and recovery without a
 	# precision route or a mandatory death.
-	_add_round_obstacle("SharedFloorRoll", Vector2(8500, 675), 125.0, terrain_color)
-	_add_round_obstacle("SharedCeilingDrift", Vector2(9450, 55), 175.0, terrain_color)
-	_add_round_obstacle("SharedSqueezeTop", Vector2(10600, 150), 145.0, terrain_color)
-	_add_round_obstacle("SharedSqueezeBottom", Vector2(10600, 610), 145.0, terrain_color)
-	_add_round_obstacle("SharedRecoveryHill", Vector2(11750, 665), 170.0, terrain_color)
-	_add_round_obstacle("SharedCeilingExit", Vector2(12500, 115), 160.0, terrain_color)
+	_add_round_obstacle("SharedFloorRoll", Vector2(4650, 675), 125.0, terrain_color)
+	_add_round_obstacle("SharedCeilingDrift", Vector2(5300, 55), 175.0, terrain_color)
+	_add_round_obstacle("SharedSqueezeTop", Vector2(5950, 150), 145.0, terrain_color)
+	_add_round_obstacle("SharedSqueezeBottom", Vector2(5950, 610), 145.0, terrain_color)
+	_add_round_obstacle("SharedRecoveryHill", Vector2(6650, 665), 170.0, terrain_color)
+	_add_round_obstacle("SharedCeilingExit", Vector2(7200, 115), 160.0, terrain_color)
 
 	# Rounded lips make the late floor gap readable. Holding lift provides ample
 	# recovery time; the final stretch after it is intentionally calm.
-	_add_round_obstacle("RecoveryGapEntry", Vector2(13180, 675), 80.0, terrain_color)
-	_add_round_obstacle("RecoveryGapExit", Vector2(14520, 675), 80.0, terrain_color)
+	_add_round_obstacle("RecoveryGapEntry", Vector2(7580, 675), 80.0, terrain_color)
+	_add_round_obstacle("RecoveryGapExit", Vector2(8370, 675), 80.0, terrain_color)
 
 func _add_rect(body_name: String, rect: Rect2, color: Color) -> void:
 	var body := StaticBody2D.new()
@@ -308,6 +289,15 @@ func _add_polygon(body_name: String, points: PackedVector2Array, color: Color) -
 	add_child(body)
 	_terrain_guides.append(points)
 	_terrain_colors.append(color)
+
+func _add_spiked_row(body_name: String, tip_x: float, base_x: float, top_y: float, height: float, end_x: float, color: Color) -> void:
+	var middle_y := top_y + height * 0.5
+	_add_polygon("%sSpike" % body_name, PackedVector2Array([
+		Vector2(tip_x, middle_y),
+		Vector2(base_x, top_y),
+		Vector2(base_x, top_y + height),
+	]), color)
+	_add_rect("%sBeam" % body_name, Rect2(base_x, top_y, end_x - base_x, height), color)
 
 func _add_round_obstacle(body_name: String, center: Vector2, radius: float, color: Color) -> void:
 	var body := StaticBody2D.new()

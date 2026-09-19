@@ -31,10 +31,10 @@ signal split_requested(source, separation_axis: Vector2, split_origin: Vector2)
 @export_range(0.25, 1.0, 0.05) var small_blob_snag_delay_scale := 0.65
 
 @export_category("Movement")
-@export_range(0.0, 4000.0, 10.0) var forward_force := 360.0
+@export_range(0.0, 4000.0, 10.0) var forward_force := 380.0
 @export_range(0.0, 5000.0, 10.0) var lift_force := 1750.0
 @export_range(0.0, 3000.0, 10.0) var gravity := 980.0
-@export_range(20.0, 1200.0, 10.0, "suffix:px/s") var max_speed := 260.0
+@export_range(20.0, 1200.0, 10.0, "suffix:px/s") var max_speed := 275.0
 @export_range(0.0, 20.0, 0.1) var linear_damping := 1.2
 @export_range(0.0, 20.0, 0.1) var angular_damping := 4.0
 
