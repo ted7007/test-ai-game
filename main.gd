@@ -16,10 +16,10 @@ const PLAYER_SCENE := preload("res://player/player_blob.tscn")
 const PAUSE_MENU_SCENE := preload("res://ui/pause_menu.tscn")
 
 @export_category("Camera pacing")
-@export_range(0.0, 300.0, 5.0, "suffix:px/s") var camera_base_scroll_speed := 55.0
-@export_range(0.0, 500.0, 10.0, "suffix:px") var camera_catchup_start_distance := 220.0
-@export_range(0.0, 3.0, 0.05) var camera_catchup_gain := 0.65
-@export_range(55.0, 500.0, 5.0, "suffix:px/s") var camera_max_scroll_speed := 220.0
+@export_range(0.0, 300.0, 5.0, "suffix:px/s") var camera_base_scroll_speed := 75.0
+@export_range(0.0, 500.0, 10.0, "suffix:px") var camera_catchup_start_distance := 180.0
+@export_range(0.0, 3.0, 0.05) var camera_catchup_gain := 0.75
+@export_range(55.0, 500.0, 5.0, "suffix:px/s") var camera_max_scroll_speed := 260.0
 
 @onready var camera: Camera2D = $Camera2D
 
@@ -33,8 +33,12 @@ var _won := false
 var _has_split := false
 var _touch_lift := false
 var _pause_menu: GamePauseMenu
+var _total_participants := 0
+var _finished_participants := 0
+var _lost_participants := 0
 
 func _ready() -> void:
+	_reset_attempt_result()
 	_register_player($PlayerBlob)
 	_build_level()
 	_build_ui()
@@ -47,6 +51,7 @@ func _physics_process(delta: float) -> void:
 		_publish_debug_data(delta)
 		return
 	_elapsed += delta
+	var finished: Array[PlayerBlob] = []
 	var eliminated: Array[PlayerBlob] = []
 	var last_elimination_reason := "No players remaining"
 	for current_player in _players:
@@ -57,23 +62,28 @@ func _physics_process(delta: float) -> void:
 			else:
 				current_player.recover_shape_in_place()
 				DebugLog.event("Small blob recovered from an unstable stretch")
-	_update_camera(delta)
 	for current_player in _players:
-		if current_player in eliminated:
-			continue
 		if current_player.get_center_position().x >= FINISH_X:
-			_win_level()
-			break
-		if current_player.get_center_position().y > FALL_DEATH_Y:
+			finished.append(current_player)
+		elif current_player.get_center_position().y > FALL_DEATH_Y:
 			eliminated.append(current_player)
 			last_elimination_reason = "Fell below the level"
-		elif current_player.get_core_left_position() <= _left_wall_x():
-			eliminated.append(current_player)
-			last_elimination_reason = "Caught by the left wall"
+	for current_player in finished:
+		_finish_player(current_player)
 	for current_player in eliminated:
-		_remove_player(current_player)
-	if not _won and _players.is_empty():
-		_end_attempt(last_elimination_reason)
+		_lose_player(current_player, last_elimination_reason)
+	if _players.is_empty():
+		_complete_attempt(last_elimination_reason)
+	else:
+		_update_camera(delta)
+		var left_behind: Array[PlayerBlob] = []
+		for current_player in _players:
+			if current_player.get_core_left_position() <= _left_wall_x():
+				left_behind.append(current_player)
+		for current_player in left_behind:
+			_lose_player(current_player, "Caught by the left wall")
+		if _players.is_empty():
+			_complete_attempt("Caught by the left wall")
 	_publish_debug_data(delta)
 	queue_redraw()
 
@@ -93,6 +103,7 @@ func _restart() -> void:
 	_elapsed = 0.0
 	_has_split = false
 	_touch_lift = false
+	_reset_attempt_result()
 	get_tree().paused = false
 	_clear_players()
 	_spawn_player(INITIAL_PLAYER_POSITION, 1.0, true, Vector2.ZERO, Vector2.ZERO)
@@ -105,7 +116,7 @@ func _end_attempt(reason: String) -> void:
 	for current_player in _players:
 		current_player.set_touch_lift(false)
 	_pause_menu.show_menu(false, "GAME OVER\n%s" % reason)
-	DebugLog.event("Production attempt ended", reason)
+	DebugLog.event("Production attempt ended", "%s (%d / %d finished)" % [reason, _finished_participants, _total_participants])
 
 func _win_level() -> void:
 	_won = true
@@ -113,41 +124,68 @@ func _win_level() -> void:
 	for current_player in _players:
 		current_player.set_touch_lift(false)
 	_pause_menu.show_menu(false, "FINISH!")
-	DebugLog.event("Production level finished")
+	DebugLog.event("Production level finished", "%d / %d finished" % [_finished_participants, _total_participants])
+
+func _complete_attempt(last_elimination_reason: String) -> void:
+	if _finished_participants > 0:
+		_win_level()
+	else:
+		_end_attempt(last_elimination_reason)
+
+func _finish_player(current_player: PlayerBlob) -> void:
+	if current_player not in _players:
+		return
+	_finished_participants += 1
+	_remove_player(current_player)
+	DebugLog.event("Player reached Finish", "%d active remaining" % _players.size())
+
+func _lose_player(current_player: PlayerBlob, reason: String) -> void:
+	if current_player not in _players:
+		return
+	_lost_participants += 1
+	_remove_player(current_player)
+	DebugLog.event("Player lost", reason)
+
+func _reset_attempt_result() -> void:
+	_total_participants = 0
+	_finished_participants = 0
+	_lost_participants = 0
 
 func _reset_camera() -> void:
 	_camera_x = HALF_VIEW_WIDTH
 	camera.global_position = Vector2(_camera_x, 360.0)
 
 func _update_camera(delta: float) -> void:
-	var focus_x := _get_player_group_center_x()
+	var focus_x := _get_leading_player_x()
 	var lead_distance := maxf(0.0, focus_x - _camera_x - camera_catchup_start_distance)
 	var scroll_speed := minf(camera_base_scroll_speed + lead_distance * camera_catchup_gain, maxf(camera_base_scroll_speed, camera_max_scroll_speed))
 	_camera_x = minf(_camera_x + scroll_speed * delta, WORLD_WIDTH - HALF_VIEW_WIDTH)
 	camera.global_position = Vector2(_camera_x, 360.0)
 
-func _get_player_group_center_x() -> float:
+func _get_leading_player_x() -> float:
 	if _players.is_empty():
 		return _camera_x
-	var total_x := 0.0
+	var leading_x := -INF
 	for current_player in _players:
-		total_x += current_player.get_center_position().x
-	return total_x / float(_players.size())
+		leading_x = maxf(leading_x, current_player.get_center_position().x)
+	return leading_x
 
 func _left_wall_x() -> float:
 	return _camera_x - HALF_VIEW_WIDTH + LEFT_WALL_INSET
 
-func _register_player(new_player: PlayerBlob) -> void:
+func _register_player(new_player: PlayerBlob, count_toward_result := true) -> void:
 	_players.append(new_player)
+	if count_toward_result:
+		_total_participants += 1
 	new_player.set_touch_lift(_touch_lift)
 	new_player.split_requested.connect(_on_player_split_requested)
 
-func _spawn_player(spawn_position: Vector2, size_scale: float, allow_split: bool, inherited_velocity: Vector2, separation_impulse: Vector2) -> PlayerBlob:
+func _spawn_player(spawn_position: Vector2, size_scale: float, allow_split: bool, inherited_velocity: Vector2, separation_impulse: Vector2, count_toward_result := true) -> PlayerBlob:
 	var new_player := PLAYER_SCENE.instantiate() as PlayerBlob
 	new_player.configure_variant(size_scale, allow_split)
 	new_player.position = spawn_position
 	add_child(new_player)
-	_register_player(new_player)
+	_register_player(new_player, count_toward_result)
 	new_player.initialize_motion(inherited_velocity, separation_impulse)
 	return new_player
 
@@ -168,7 +206,10 @@ func _replace_player_with_children(source: PlayerBlob, separation_axis: Vector2,
 		var direction_factor := centered_index / max_centered_index if child_count > 1 else 0.0
 		var child_position := split_origin + axis * SPLIT_CHILD_CLEARANCE * direction_factor
 		var child_impulse := axis * separation_impulse * direction_factor
-		_spawn_player(child_position, child_scale, children_can_split, inherited_velocity, child_impulse)
+		_spawn_player(child_position, child_scale, children_can_split, inherited_velocity, child_impulse, false)
+	# Split replaces one result participant with its children, rather than
+	# counting the disappearing source as an additional failed participant.
+	_total_participants += child_count - 1
 	_has_split = true
 	DebugLog.event("Player split", "%d children at %.2f scale" % [child_count, child_scale])
 
@@ -273,6 +314,10 @@ func _publish_debug_data(delta: float) -> void:
 		"vertical_velocity": leading_velocity.y,
 		"alive": not _players.is_empty(),
 		"players": _players.size(),
+		"participants_total": _total_participants,
+		"participants_finished": _finished_participants,
+		"participants_lost": _lost_participants,
+		"result": "%d / %d" % [_finished_participants, _total_participants],
 		"touch": "pressed" if (_touch_lift or Input.is_action_pressed("fly")) else "released",
 		"input": "spring blob",
 		"frame_time": delta * 1000.0,
