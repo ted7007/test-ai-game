@@ -241,20 +241,21 @@ func _build_level() -> void:
 	_add_round_obstacle("RequiredSqueezeTop", Vector2(1300, 150), 155.0, terrain_color)
 	_add_round_obstacle("RequiredSqueezeBottom", Vector2(1300, 580), 165.0, terrain_color)
 
-	# The spike array is visible immediately: the high route remains an optional
-	# full-size bypass, while the three 80–90 px lanes only fit Split children.
-	_add_spiked_row("SplitRowTop", 2350.0, 2450.0, 300.0, 25.0, 4000.0, terrain_color)
-	_add_spiked_row("SplitRowMiddle", 2350.0, 2450.0, 415.0, 25.0, 4000.0, terrain_color)
-	_add_spiked_row("SplitRowBottom", 2350.0, 2450.0, 530.0, 25.0, 4000.0, terrain_color)
-	# Alternating round protrusions make the separated channels active without
-	# turning them into precision passages or adding another Split surface.
-	_add_round_obstacle("SplitLaneUpperLow", Vector2(2900, 312.5), 25.0, terrain_color)
-	_add_round_obstacle("SplitLaneUpperHigh", Vector2(3450, 427.5), 25.0, terrain_color)
-	_add_round_obstacle("SplitLaneLowerLow", Vector2(3050, 427.5), 25.0, terrain_color)
-	_add_round_obstacle("SplitLaneLowerHigh", Vector2(3600, 542.5), 25.0, terrain_color)
-	_add_round_obstacle("SplitRowTopCap", Vector2(4000, 312.5), 12.5, terrain_color)
-	_add_round_obstacle("SplitRowMiddleCap", Vector2(4000, 427.5), 12.5, terrain_color)
-	_add_round_obstacle("SplitRowBottomCap", Vector2(4000, 542.5), 12.5, terrain_color)
+	# The spike array is visible immediately. Six long converging tips provide
+	# sustained crush pressure, while 38 px lanes block the full-size blob and
+	# require the Split children to deform while passing through.
+	_add_spiked_row("SplitRow1", 2250.0, 2450.0, 300.0, 25.0, 4000.0, terrain_color)
+	_add_spiked_row("SplitRow2", 2250.0, 2450.0, 363.0, 25.0, 4000.0, terrain_color)
+	_add_spiked_row("SplitRow3", 2250.0, 2450.0, 426.0, 25.0, 4000.0, terrain_color)
+	_add_spiked_row("SplitRow4", 2250.0, 2450.0, 489.0, 25.0, 4000.0, terrain_color)
+	_add_spiked_row("SplitRow5", 2250.0, 2450.0, 552.0, 25.0, 4000.0, terrain_color)
+	_add_spiked_row("SplitRow6", 2250.0, 2450.0, 615.0, 20.0, 4000.0, terrain_color)
+	_add_round_obstacle("SplitRow1Cap", Vector2(4000, 312.5), 12.5, terrain_color)
+	_add_round_obstacle("SplitRow2Cap", Vector2(4000, 375.5), 12.5, terrain_color)
+	_add_round_obstacle("SplitRow3Cap", Vector2(4000, 438.5), 12.5, terrain_color)
+	_add_round_obstacle("SplitRow4Cap", Vector2(4000, 501.5), 12.5, terrain_color)
+	_add_round_obstacle("SplitRow5Cap", Vector2(4000, 564.5), 12.5, terrain_color)
+	_add_round_obstacle("SplitRow6Cap", Vector2(4000, 625.0), 10.0, terrain_color)
 
 	# Three tight rounded gates make the shared section physically dense while
 	# remaining recoverable. Their gaps require visible full-size deformation.
