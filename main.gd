@@ -241,15 +241,15 @@ func _build_level() -> void:
 	_add_round_obstacle("RequiredSqueezeTop", Vector2(1300, 150), 155.0, terrain_color)
 	_add_round_obstacle("RequiredSqueezeBottom", Vector2(1300, 580), 165.0, terrain_color)
 
-	# The spike array is visible immediately. Six long converging tips provide
-	# sustained crush pressure, while 38 px lanes block the full-size blob and
-	# require the Split children to deform while passing through.
-	_add_spiked_row("SplitRow1", 2250.0, 2450.0, 300.0, 25.0, 4000.0, terrain_color)
-	_add_spiked_row("SplitRow2", 2250.0, 2450.0, 363.0, 25.0, 4000.0, terrain_color)
-	_add_spiked_row("SplitRow3", 2250.0, 2450.0, 426.0, 25.0, 4000.0, terrain_color)
-	_add_spiked_row("SplitRow4", 2250.0, 2450.0, 489.0, 25.0, 4000.0, terrain_color)
-	_add_spiked_row("SplitRow5", 2250.0, 2450.0, 552.0, 25.0, 4000.0, terrain_color)
-	_add_spiked_row("SplitRow6", 2250.0, 2450.0, 615.0, 20.0, 4000.0, terrain_color)
+	# Keep the 38 px channels, but make their entry tips steep. The previous
+	# 200 px tips produced almost parallel normals and could not satisfy the
+	# Split detector's forward-pressure alignment check.
+	_add_spiked_row("SplitRow1", 2220.0, 2250.0, 300.0, 25.0, 4000.0, terrain_color)
+	_add_spiked_row("SplitRow2", 2220.0, 2250.0, 363.0, 25.0, 4000.0, terrain_color)
+	_add_spiked_row("SplitRow3", 2220.0, 2250.0, 426.0, 25.0, 4000.0, terrain_color)
+	_add_spiked_row("SplitRow4", 2220.0, 2250.0, 489.0, 25.0, 4000.0, terrain_color)
+	_add_spiked_row("SplitRow5", 2220.0, 2250.0, 552.0, 25.0, 4000.0, terrain_color)
+	_add_spiked_row("SplitRow6", 2220.0, 2250.0, 615.0, 20.0, 4000.0, terrain_color)
 	_add_round_obstacle("SplitRow1Cap", Vector2(4000, 312.5), 12.5, terrain_color)
 	_add_round_obstacle("SplitRow2Cap", Vector2(4000, 375.5), 12.5, terrain_color)
 	_add_round_obstacle("SplitRow3Cap", Vector2(4000, 438.5), 12.5, terrain_color)
